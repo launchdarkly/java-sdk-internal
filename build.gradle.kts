@@ -51,6 +51,7 @@ dependencies {  // see Dependencies.kt in buildSrc
             exclude(group = "org.hamcrest") // avoid conflicts between multiple Hamcrests
         }
     }
+    Libs.testHamcrest.forEach { testImplementation(it) }
 }
 
 checkstyle {

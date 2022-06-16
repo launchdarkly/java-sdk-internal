@@ -76,4 +76,5 @@ dependencies {  // see Dependencies.kt in buildSrc
         }
     }
     Libs.androidTestImplementation.each { androidTestImplementation(it) }
+    Libs.testHamcrest.forEach { testImplementation(it) }
 }
