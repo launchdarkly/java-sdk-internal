@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.launchdarkly.sdk">
+    package="com.launchdarkly.sdk.internal">
 
     <application>
         <activity
@@ -9,6 +9,6 @@
 
     <instrumentation
         android:name="android.support.test.runner.AndroidJUnitRunner"
-        android:targetPackage="com.launchdarkly.sdk" />
+        android:targetPackage="com.launchdarkly.sdk.internal" />
 
 </manifest>
