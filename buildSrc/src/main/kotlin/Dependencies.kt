@@ -41,12 +41,7 @@ object Libs {
         // the usual Gradle "implementation" configuration, because we don't want them to be
         // visible at all in the module's published dependencies - not even in "runtime" scope.
         //
-        // While java-sdk-internal does need Gson in order to work, the LaunchDarkly SDKs that
-        // use java-sdk-internal have different strategies for packaging Gson. The Android SDK
-        // exposes it as a regular dependency; the Java server-side SDK embeds and shades Gson
-        // and does not expose it as a dependency. So we are leaving it up to the SDK to
-        // provide Gson in some way.
-        "com.google.code.gson:gson:${Versions.gson}"
+        // TODO: Unclear whether we will need to use this category.
     )
 
     val javaBuiltInGradlePlugins = listOf(

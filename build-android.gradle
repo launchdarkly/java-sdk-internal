@@ -71,6 +71,10 @@ dependencies {  // see Dependencies.kt in buildSrc
     // for the Android build.
     Libs.implementation.each { implementation(it) }
     Libs.privateImplementation.each { implementation(it) }
-    Libs.javaTestImplementation.each { testImplementation(it) }
+    Libs.javaTestImplementation.forEach {
+        testImplementation(it) {
+            exclude(group = "org.hamcrest") // avoid conflicts between multiple Hamcrests
+        }
+    }
     Libs.androidTestImplementation.each { androidTestImplementation(it) }
 }
