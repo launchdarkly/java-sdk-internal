@@ -26,16 +26,9 @@ object Libs {
         "org.slf4j:slf4j-api:${Versions.slf4j}"
     )
 
-    val testHamcrest = listOf(
-        // This is in a separate category because some of our other test dependencies have
-        // Hamcrest as a transitive dependency, but they use different artifacts, which
-        // would cause conflicts if we didn't exclude Hamcrest when importing them.
-        "org.hamcrest:hamcrest-library:1.3"
-    )
-
     val javaTestImplementation = listOf(
         "junit:junit:4.12",
-        "com.launchdarkly:test-helpers:1.1.0"
+        "org.hamcrest:hamcrest-library:1.3"
     )
 
     val androidTestImplementation = javaTestImplementation + listOf(

@@ -46,12 +46,7 @@ val privateImplementation by configurations.creating
 
 dependencies {  // see Dependencies.kt in buildSrc
     Libs.implementation.forEach { implementation(it)}
-    Libs.javaTestImplementation.forEach {
-        testImplementation(it) {
-            exclude(group = "org.hamcrest") // avoid conflicts between multiple Hamcrests
-        }
-    }
-    Libs.testHamcrest.forEach { testImplementation(it) }
+    Libs.javaTestImplementation.forEach { testImplementation(it) }
 }
 
 checkstyle {
