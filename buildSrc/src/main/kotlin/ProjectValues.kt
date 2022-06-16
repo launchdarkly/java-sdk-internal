@@ -8,7 +8,7 @@ object ProjectValues {
     const val description = "LaunchDarkly SDK Java Shared Implementation"
     const val githubRepo = "launchdarkly/java-sdk-internal"
 
-    const val sdkBasePackage = "com.launchdarkly.sdk"
+    const val sdkBasePackage = "com.launchdarkly.sdk.internal"
 
     const val pomDeveloperName = "LaunchDarkly SDK Team"
     const val pomDeveloperEmail = "sdks@launchdarkly.com"
