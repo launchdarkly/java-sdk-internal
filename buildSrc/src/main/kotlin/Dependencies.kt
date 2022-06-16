@@ -36,14 +36,6 @@ object Libs {
         "com.android.support.test:runner:1.0.2"
     )
 
-    val privateImplementation = listOf(
-        // These will be used in the compile-time classpath, but they should *not* be put in
-        // the usual Gradle "implementation" configuration, because we don't want them to be
-        // visible at all in the module's published dependencies - not even in "runtime" scope.
-        //
-        // TODO: Unclear whether we will need to use this category.
-    )
-
     val javaBuiltInGradlePlugins = listOf(
         "java",
         "java-library",
