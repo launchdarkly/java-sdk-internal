@@ -40,6 +40,9 @@ public class EventContextFormatterTest extends BaseTest {
     this.expectedJson = expectedJson;
   }
   
+  // Note, due to a known issue with the Android test orchestrator (https://github.com/android/android-test/issues/837),
+  // none of the parameters for this parameterized test can be null.
+  
   @Parameterized.Parameters(name = "{0}")
   public static Iterable<Object[]> data() {
     return ImmutableList.of(
@@ -50,7 +53,7 @@ public class EventContextFormatterTest extends BaseTest {
               .set("attr1", "value1")
               .build(),
             false,
-            null,
+            new AttributeRef[0],
             "{\"kind\": \"org\", \"key\": \"my-key\", \"name\": \"my-name\", \"attr1\": \"value1\"}"
         },
         new Object[] {
@@ -65,7 +68,7 @@ public class EventContextFormatterTest extends BaseTest {
                   .build()
                 ),
             false,
-            null,
+            new AttributeRef[0],
             "{" +
                 "\"kind\": \"multi\"," +
                 "\"org\": {\"key\": \"org-key\", \"name\": \"org-name\"}," +
@@ -76,14 +79,14 @@ public class EventContextFormatterTest extends BaseTest {
             "anonymous",
             LDContext.builder("my-key").kind("org").anonymous(true).build(),
             false,
-            null,
+            new AttributeRef[0],
             "{\"kind\": \"org\", \"key\": \"my-key\", \"anonymous\": true}"
         },
         new Object[] {
             "secondary",
             LDContext.builder("my-key").kind("org").secondary("x").build(),
             false,
-            null,
+            new AttributeRef[0],
             "{\"kind\": \"org\", \"key\": \"my-key\", \"_meta\": {\"secondary\": \"x\"}}"
         },
         new Object[] {
@@ -93,7 +96,7 @@ public class EventContextFormatterTest extends BaseTest {
               .set("attr1", "value1")
               .build(),
             true,
-            null,
+            new AttributeRef[0],
             "{" +
                 "\"kind\": \"org\"," +
                 "\"key\": \"my-key\"," +
