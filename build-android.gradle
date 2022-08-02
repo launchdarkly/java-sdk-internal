@@ -1,5 +1,5 @@
-apply plugin: 'com.android.library'
-//apply plugin: 'com.github.dcendents.android-maven'
+apply plugin: "com.android.library"  // for some reason Gradle complains if this is in the plugins section
+//apply plugin: "com.getkeepsafe.dexcount"
 
 buildscript {
     repositories {
@@ -30,15 +30,15 @@ allprojects {
 }
 
 android {
-    compileSdkVersion 26
-    buildToolsVersion '28.0.3'
+    compileSdkVersion(30)
+    buildToolsVersion "30.0.3"
 
     defaultConfig {
-        minSdkVersion 16
-        targetSdkVersion 26
-        versionCode 1
-        versionName version
-        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+        minSdkVersion(21)
+        targetSdkVersion(30)
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
         consumerProguardFiles 'consumer-proguard-rules.pro'
 
         // The following argument makes the Android Test Orchestrator run its
@@ -52,24 +52,28 @@ android {
         targetCompatibility JavaVersion.VERSION_1_8
     }
 
+    testOptions {
+        execution = "ANDROIDX_TEST_ORCHESTRATOR"
+    }
+
     packagingOptions {
-        exclude 'META-INF/**'
         exclude 'META-INF/**'
     }
 
-    dexOptions {
-        javaMaxHeapSize "4g"
-    }
+    useLibrary("android.test.runner")
+    useLibrary("android.test.base")
+    useLibrary("android.test.mock")
 }
 
 dependencies {  // see Dependencies.kt in buildSrc
-    // See note in Dependencies.kt in buildSrc on the purpose of "privateImplementation".
-    // The Android Gradle plugin doesn't seem to have a good way to customize the classpath
-    // of the compile and test tasks, but since we're not actually publishing any Android
-    // artifacts from this project (we use this build only for CI testing), we can simply
-    // copy the dependencies from "privateImplementation" into the standard "implementation"
-    // for the Android build.
     Libs.implementation.each { implementation(it) }
-    Libs.javaTestImplementation.forEach { testImplementation(it) }
+    Libs.javaTestImplementation.forEach { androidTestImplementation(it) }
     Libs.androidTestImplementation.each { androidTestImplementation(it) }
+
+    androidTestImplementation("com.launchdarkly:test-helpers:${Versions.testHelpers}") {
+        exclude group: "org.eclipse.jetty" // we don't use the HTTP helpers and they don't work in Android
+        exclude group: "com.squareup.okhttp3" // also unused, causes dex limit to be exceeded
+    }
+
+    androidTestUtil("androidx.test:orchestrator:1.4.1")
 }

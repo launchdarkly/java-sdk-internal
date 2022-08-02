@@ -41,27 +41,20 @@ java {
     targetCompatibility = JavaVersion.VERSION_1_8
 }
 
-// See Dependencies.kt in buildSrc for the purpose of "privateImplementation"
-val privateImplementation by configurations.creating
-
 dependencies {  // see Dependencies.kt in buildSrc
-    Libs.implementation.forEach { implementation(it)}
+    Libs.implementation.forEach { api(it)}
     Libs.javaTestImplementation.forEach { testImplementation(it) }
+
+    testImplementation("com.launchdarkly:test-helpers:${Versions.testHelpers}")
 }
 
 checkstyle {
     configFile = file("${project.rootDir}/checkstyle.xml")
 }
 
-tasks.compileJava {
-    // See note in Dependencies.kt in buildSrc on "privateImplementation"
-    classpath = configurations["privateImplementation"]
-}
+helpers.Javadoc.configureTask(tasks.javadoc, null)  // see Javadoc.kt in buildSrc
 
-helpers.Javadoc.configureTask(tasks.javadoc, configurations["privateImplementation"])  // see Javadoc.kt in buildSrc
-
-helpers.Test.configureTask(tasks.compileTestJava, tasks.test,
-    configurations["privateImplementation"])  // see Test.kt in buildSrc
+helpers.Test.configureTask(tasks.compileTestJava, tasks.test, null)  // see Test.kt in buildSrc
 
 helpers.Jacoco.configureTasks(  // see Jacoco.kt in buildSrc
     tasks.jacocoTestReport,
