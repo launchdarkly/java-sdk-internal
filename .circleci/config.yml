@@ -155,4 +155,6 @@ jobs:
 
       - store_test_results:
           path: ./build/outputs/androidTest-results
+
+      - store_test_results:
           path: ./build/reports/androidTests/connected
