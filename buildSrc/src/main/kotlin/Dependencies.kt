@@ -5,7 +5,8 @@
 object Versions {
     const val gson = "2.8.9"
     const val guava = "30.1-jre"
-    const val launchdarklyJavaSdkCommon = "1.3.0"
+    const val launchdarklyJavaSdkCommon = "2.0.0-SNAPSHOT"
+    const val launchdarklyLogging = "1.1.1"
     const val okhttp = "4.9.1"
     const val slf4j = "1.7.21"
 }
@@ -22,13 +23,15 @@ object Libs {
         "com.google.code.gson:gson:${Versions.gson}",
         "com.google.guava:guava:${Versions.guava}",
         "com.launchdarkly:launchdarkly-java-sdk-common:${Versions.launchdarklyJavaSdkCommon}",
+        "com.launchdarkly:launchdarkly-logging:${Versions.launchdarklyLogging}",
         "com.squareup.okhttp3:okhttp:${Versions.okhttp}",
         "org.slf4j:slf4j-api:${Versions.slf4j}"
     )
 
     val javaTestImplementation = listOf(
         "junit:junit:4.12",
-        "org.hamcrest:hamcrest-library:1.3"
+        "org.hamcrest:hamcrest-library:1.3",
+        "com.launchdarkly:test-helpers:1.2.0"
     )
 
     val androidTestImplementation = javaTestImplementation + listOf(

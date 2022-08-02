@@ -41,9 +41,6 @@ java {
     targetCompatibility = JavaVersion.VERSION_1_8
 }
 
-// See Dependencies.kt in buildSrc for the purpose of "privateImplementation"
-val privateImplementation by configurations.creating
-
 dependencies {  // see Dependencies.kt in buildSrc
     Libs.implementation.forEach { implementation(it)}
     Libs.javaTestImplementation.forEach { testImplementation(it) }
@@ -52,16 +49,6 @@ dependencies {  // see Dependencies.kt in buildSrc
 checkstyle {
     configFile = file("${project.rootDir}/checkstyle.xml")
 }
-
-tasks.compileJava {
-    // See note in Dependencies.kt in buildSrc on "privateImplementation"
-    classpath = configurations["privateImplementation"]
-}
-
-helpers.Javadoc.configureTask(tasks.javadoc, configurations["privateImplementation"])  // see Javadoc.kt in buildSrc
-
-helpers.Test.configureTask(tasks.compileTestJava, tasks.test,
-    configurations["privateImplementation"])  // see Test.kt in buildSrc
 
 helpers.Jacoco.configureTasks(  // see Jacoco.kt in buildSrc
     tasks.jacocoTestReport,
