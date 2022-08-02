@@ -23,7 +23,6 @@ public class DefaultEventProcessorDiagnosticsTest extends BaseEventTest {
   private DiagnosticStore diagnosticStore;
   
   public DefaultEventProcessorDiagnosticsTest() {
-    diagnosticId = new DiagnosticId(SDK_KEY);
     diagnosticStore = new DiagnosticStore(
         new DiagnosticStore.SdkDiagnosticParams(
             SDK_KEY,
@@ -34,6 +33,7 @@ public class DefaultEventProcessorDiagnosticsTest extends BaseEventTest {
             null,
             null
             ));
+    diagnosticId = diagnosticStore.getDiagnosticId();
   }
   
   @Test
