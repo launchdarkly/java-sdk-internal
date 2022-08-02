@@ -36,6 +36,14 @@ public class DefaultEventSenderTest extends BaseEventTest {
   private static final SimpleDateFormat httpDateFormat = new SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss zzz",
       Locale.US);
   private static final long BRIEF_RETRY_DELAY_MILLIS = 50;
+
+  @Override
+  protected boolean enableTestInAndroid() {
+    // Currently our use of com.launchdarkly.testhelpers.httptest makes this test file
+    // unusable in our Android CI test job. This is the only test file in the events
+    // package that performs end-to-end HTTP.
+    return false;
+  }
   
   private EventSender makeEventSender() {
     return makeEventSender(defaultHttpProperties());

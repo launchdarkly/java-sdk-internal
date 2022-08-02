@@ -9,6 +9,7 @@ object Versions {
     const val launchdarklyLogging = "1.1.1"
     const val okhttp = "4.9.1"
     const val slf4j = "1.7.21"
+    const val testHelpers = "1.2.0"
 }
 
 object PluginVersions {
@@ -30,8 +31,9 @@ object Libs {
 
     val javaTestImplementation = listOf(
         "junit:junit:4.12",
-        "org.hamcrest:hamcrest-library:1.3",
-        "com.launchdarkly:test-helpers:1.2.0"
+        "org.hamcrest:hamcrest-library:1.3"
+        // "com.launchdarkly:test-helpers:${Versions.testHelpers}"
+        // test-helpers is special-cased in build.gradle.kts and build-android.gradle
     )
 
     val androidTestImplementation = javaTestImplementation + listOf(
