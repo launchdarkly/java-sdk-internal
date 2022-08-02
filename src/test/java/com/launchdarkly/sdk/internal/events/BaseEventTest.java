@@ -8,7 +8,7 @@ import com.launchdarkly.sdk.EvaluationReason;
 import com.launchdarkly.sdk.LDContext;
 import com.launchdarkly.sdk.LDValue;
 import com.launchdarkly.sdk.ObjectBuilder;
-import com.launchdarkly.sdk.internal.BaseInternalTest;
+import com.launchdarkly.sdk.internal.BaseTest;
 import com.launchdarkly.sdk.internal.http.HttpProperties;
 import com.launchdarkly.testhelpers.JsonAssertions;
 import com.launchdarkly.testhelpers.JsonTestValue;
@@ -42,7 +42,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
 @SuppressWarnings("javadoc")
-public abstract class BaseEventTest extends BaseInternalTest {
+public abstract class BaseEventTest extends BaseTest {
   public static final String SDK_KEY = "SDK_KEY";
   public static final long FAKE_TIME = 100000;
   public static final String FLAG_KEY = "flagkey";

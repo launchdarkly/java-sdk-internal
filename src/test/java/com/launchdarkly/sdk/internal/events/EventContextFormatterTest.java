@@ -6,6 +6,7 @@ import com.launchdarkly.sdk.AttributeRef;
 import com.launchdarkly.sdk.LDContext;
 import com.launchdarkly.sdk.LDValue;
 import com.launchdarkly.sdk.ObjectBuilder;
+import com.launchdarkly.sdk.internal.BaseTest;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -20,7 +21,7 @@ import static com.launchdarkly.testhelpers.JsonAssertions.assertJsonEquals;
 
 @SuppressWarnings("javadoc")
 @RunWith(Parameterized.class)
-public class EventContextFormatterTest {
+public class EventContextFormatterTest extends BaseTest {
   private final LDContext context;
   private final boolean allAttributesPrivate;
   private final AttributeRef[] globalPrivateAttributes;

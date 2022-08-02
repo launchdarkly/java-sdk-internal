@@ -2,6 +2,7 @@ package com.launchdarkly.sdk.internal.events;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.launchdarkly.sdk.internal.BaseTest;
 
 import org.junit.Test;
 
@@ -14,7 +15,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 @SuppressWarnings("javadoc")
-public class DiagnosticEventTest {
+public class DiagnosticEventTest extends BaseTest {
   private static List<DiagnosticEvent.StreamInit> testStreamInits =
       Collections.singletonList(new DiagnosticEvent.StreamInit(1500, 100, true));
 

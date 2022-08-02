@@ -1,6 +1,7 @@
 package com.launchdarkly.sdk.internal.events;
 
 import com.launchdarkly.sdk.LDValue;
+import com.launchdarkly.sdk.internal.BaseTest;
 import com.launchdarkly.sdk.internal.events.DiagnosticStore.SdkDiagnosticParams;
 
 import org.junit.Test;
@@ -23,7 +24,7 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertSame;
 
 @SuppressWarnings("javadoc")
-public class DiagnosticStoreTest {
+public class DiagnosticStoreTest extends BaseTest {
   private static final String SDK_KEY = "key-abcdefg";
   private static final String SDK_NAME = "fake-sdk";
   private static final String SDK_VERSION = "1.2.3";

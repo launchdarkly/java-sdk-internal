@@ -1,5 +1,7 @@
 package com.launchdarkly.sdk.internal.http;
 
+import com.launchdarkly.sdk.internal.BaseTest;
+
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -7,7 +9,7 @@ import static org.junit.Assert.assertEquals;
 import okhttp3.OkHttpClient;
 
 @SuppressWarnings("javadoc")
-public class HttpPropertiesTest {
+public class HttpPropertiesTest extends BaseTest {
   @Test
   public void testConnectTimeout() {
     HttpProperties hp = new HttpProperties(

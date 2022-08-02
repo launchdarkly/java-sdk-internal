@@ -5,6 +5,7 @@ import com.google.common.collect.ImmutableSet;
 import com.launchdarkly.sdk.ContextKind;
 import com.launchdarkly.sdk.LDContext;
 import com.launchdarkly.sdk.LDValue;
+import com.launchdarkly.sdk.internal.BaseTest;
 import com.launchdarkly.sdk.internal.events.EventSummarizer.CounterValue;
 import com.launchdarkly.sdk.internal.events.EventSummarizer.EventSummary;
 import com.launchdarkly.sdk.internal.events.EventSummarizer.FlagInfo;
@@ -21,7 +22,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 @SuppressWarnings("javadoc")
-public class EventSummarizerTest {
+public class EventSummarizerTest extends BaseTest {
   private static final LDContext context = LDContext.create("key");
   
   @Test

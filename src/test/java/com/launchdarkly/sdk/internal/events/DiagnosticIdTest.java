@@ -2,6 +2,7 @@ package com.launchdarkly.sdk.internal.events;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
+import com.launchdarkly.sdk.internal.BaseTest;
 
 import org.junit.Test;
 
@@ -11,7 +12,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
 @SuppressWarnings("javadoc")
-public class DiagnosticIdTest {
+public class DiagnosticIdTest extends BaseTest {
   private static final Gson gson = new Gson();
 
   @Test
