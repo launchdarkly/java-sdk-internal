@@ -9,6 +9,10 @@
 
     <instrumentation
         android:name="android.support.test.runner.AndroidJUnitRunner"
-        android:targetPackage="com.launchdarkly.sdk.internal" />
+        android:targetPackage="com.launchdarkly.sdk.internal.events" />
+
+    <instrumentation
+        android:name="android.support.test.runner.AndroidJUnitRunner"
+        android:targetPackage="com.launchdarkly.sdk.internal.http" />
 
 </manifest>

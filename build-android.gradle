@@ -1,5 +1,3 @@
-apply plugin: 'com.android.library'
-//apply plugin: 'com.github.dcendents.android-maven'
 
 buildscript {
     repositories {
@@ -14,6 +12,11 @@ buildscript {
 // This Gradle script is used only when we are running tests in an Android environment to verify
 // that the project is Android-compatible. We do not publish an Android build - that is done in
 // the android-client-sdk project.
+
+plugins {
+    id("com.android.library")
+    id("com.getkeepsafe.dexcount")
+}
 
 repositories {
     mavenLocal()
@@ -34,11 +37,13 @@ android {
     buildToolsVersion '28.0.3'
 
     defaultConfig {
-        minSdkVersion 16
+        minSdkVersion 21
         targetSdkVersion 26
         versionCode 1
         versionName version
-        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
         consumerProguardFiles 'consumer-proguard-rules.pro'
 
         // The following argument makes the Android Test Orchestrator run its
@@ -52,14 +57,19 @@ android {
         targetCompatibility JavaVersion.VERSION_1_8
     }
 
+
+    testOptions {
+        execution = "ANDROIDX_TEST_ORCHESTRATOR"
+    }
+
     packagingOptions {
         exclude 'META-INF/**'
         exclude 'META-INF/**'
     }
 
-    dexOptions {
-        javaMaxHeapSize "4g"
-    }
+    useLibrary("android.test.runner")
+    useLibrary("android.test.base")
+    useLibrary("android.test.mock")
 }
 
 dependencies {  // see Dependencies.kt in buildSrc
@@ -75,4 +85,6 @@ dependencies {  // see Dependencies.kt in buildSrc
         exclude group: "org.eclipse.jetty" // the HTTP helpers currently don't work in Android
         exclude group: "com.squareup.okhttp3"
     }
+    
+    androidTestUtil("androidx.test:orchestrator:1.4.1")
 }

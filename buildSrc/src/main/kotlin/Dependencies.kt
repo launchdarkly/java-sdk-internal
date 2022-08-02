@@ -36,8 +36,11 @@ object Libs {
         // test-helpers is special-cased in build.gradle.kts and build-android.gradle
     )
 
-    val androidTestImplementation = javaTestImplementation + listOf(
-        "com.android.support.test:runner:1.0.2"
+    val androidTestImplementation = javaTestImplementation + listOf(    
+        "androidx.test:core:1.4.0",
+        "androidx.test:runner:1.4.0",
+        "androidx.test:rules:1.4.0",
+        "androidx.test.ext:junit:1.1.3"
     )
 
     val javaBuiltInGradlePlugins = listOf(
