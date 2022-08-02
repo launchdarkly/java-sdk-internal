@@ -52,7 +52,6 @@ android {
         targetCompatibility JavaVersion.VERSION_1_8
     }
 
-
     testOptions {
         execution = "ANDROIDX_TEST_ORCHESTRATOR"
     }
@@ -68,16 +67,12 @@ android {
 
 dependencies {  // see Dependencies.kt in buildSrc
     Libs.implementation.each { implementation(it) }
-    Libs.javaTestImplementation.forEach { testImplementation(it) }
+    Libs.javaTestImplementation.forEach { androidTestImplementation(it) }
     Libs.androidTestImplementation.each { androidTestImplementation(it) }
 
-    // The HTTP tools in com.launchdarkly:test-helpers currently use a Jetty-based
-    // implementation that doesn't work in Android. Until we have a better solution,
-    // we need to exclude the Jetty-related content from this dependency, and not
-    // try to run the tests that use those tools in Android.
     androidTestImplementation("com.launchdarkly:test-helpers:${Versions.testHelpers}") {
-        exclude group: "org.eclipse.jetty" // the HTTP helpers currently don't work in Android
-        exclude group: "com.squareup.okhttp3"
+        exclude group: "org.eclipse.jetty" // we don't use the HTTP helpers and they don't work in Android
+        exclude group: "com.squareup.okhttp3" // also unused, causes dex limit to be exceeded
     }
 
     androidTestUtil("androidx.test:orchestrator:1.4.1")

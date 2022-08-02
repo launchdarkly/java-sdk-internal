@@ -42,7 +42,7 @@ java {
 }
 
 dependencies {  // see Dependencies.kt in buildSrc
-    Libs.implementation.forEach { implementation(it)}
+    Libs.implementation.forEach { api(it)}
     Libs.javaTestImplementation.forEach { testImplementation(it) }
 
     testImplementation("com.launchdarkly:test-helpers:${Versions.testHelpers}")
@@ -52,6 +52,10 @@ dependencies {  // see Dependencies.kt in buildSrc
 checkstyle {
     configFile = file("${project.rootDir}/checkstyle.xml")
 }
+
+helpers.Javadoc.configureTask(tasks.javadoc, null)  // see Javadoc.kt in buildSrc
+
+helpers.Test.configureTask(tasks.compileTestJava, tasks.test, null)  // see Test.kt in buildSrc
 
 helpers.Jacoco.configureTasks(  // see Jacoco.kt in buildSrc
     tasks.jacocoTestReport,

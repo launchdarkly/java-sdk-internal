@@ -57,7 +57,7 @@ To build the project and run all unit tests:
 ./gradlew test
 ```
 
-## Note on Java version and Android support
+## Note on Java version, Android support, and dependencies
 
 This project can be used both in server-side Java and in Android. Its minimum Java version is 8, but not all Java 8 APIs and syntax are supported in Android. The CI jobs for this project include an Android job that runs all of the unit tests in Android, to verify that no unsupported APIs are being used.
 
@@ -72,3 +72,7 @@ Sometimes a gap in coverage is unavoidable, usually because the compiler require
 * Mark the code with an explanatory comment beginning with "COVERAGE:".
 * Run the code coverage task with `./gradlew jacocoTestCoverageVerification`. It should fail and indicate how many lines of missed coverage exist in the method you modified.
 * Add an item in the `knownMissedLinesForMethods` map in `build.gradle` that specifies that number of missed lines for that method signature.
+
+## Note on dependencies
+
+Because this project can be used in Android, it's important to avoid heavyweight runtime dependencies. For instance, as convenient as Guava can be, we should not use Guava at all (except possibly in _test_ code) because it is a large library-- and also because if the application does use Guava, we don't want to have to worry about conflicting with whatever version they're using.
