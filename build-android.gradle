@@ -1,3 +1,5 @@
+apply plugin: "com.android.library"  // for some reason Gradle complains if this is in the plugins section
+//apply plugin: "com.getkeepsafe.dexcount"
 
 buildscript {
     repositories {
@@ -12,11 +14,6 @@ buildscript {
 // This Gradle script is used only when we are running tests in an Android environment to verify
 // that the project is Android-compatible. We do not publish an Android build - that is done in
 // the android-client-sdk project.
-
-plugins {
-    id("com.android.library")
-    id("com.getkeepsafe.dexcount")
-}
 
 repositories {
     mavenLocal()
@@ -33,14 +30,12 @@ allprojects {
 }
 
 android {
-    compileSdkVersion 26
-    buildToolsVersion '28.0.3'
+    compileSdkVersion(30)
+    buildToolsVersion "30.0.3"
 
     defaultConfig {
-        minSdkVersion 21
-        targetSdkVersion 26
-        versionCode 1
-        versionName version
+        minSdkVersion(21)
+        targetSdkVersion(30)
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -64,7 +59,6 @@ android {
 
     packagingOptions {
         exclude 'META-INF/**'
-        exclude 'META-INF/**'
     }
 
     useLibrary("android.test.runner")
@@ -85,6 +79,6 @@ dependencies {  // see Dependencies.kt in buildSrc
         exclude group: "org.eclipse.jetty" // the HTTP helpers currently don't work in Android
         exclude group: "com.squareup.okhttp3"
     }
-    
+
     androidTestUtil("androidx.test:orchestrator:1.4.1")
 }
