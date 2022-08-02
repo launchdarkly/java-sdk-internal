@@ -9,7 +9,6 @@ import java.net.URI;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.samePropertyValuesAs;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
@@ -60,7 +59,8 @@ public class DefaultEventProcessorDiagnosticsTest extends BaseEventTest {
 
       assertNotNull(initEvent);
       assertThat(initEvent.kind, equalTo("diagnostic-init"));
-      assertThat(initEvent.id, samePropertyValuesAs(diagnosticId));
+      assertThat(initEvent.id.diagnosticId, equalTo(diagnosticId.diagnosticId));
+      assertThat(initEvent.id.sdkKeySuffix, equalTo(diagnosticId.sdkKeySuffix));
       assertNotNull(initEvent.configuration);
       assertNotNull(initEvent.sdk);
       assertNotNull(initEvent.platform);
@@ -82,7 +82,8 @@ public class DefaultEventProcessorDiagnosticsTest extends BaseEventTest {
 
       assertNotNull(statsEvent);
       assertThat(statsEvent.kind, equalTo("diagnostic"));
-      assertThat(statsEvent.id, samePropertyValuesAs(diagnosticId));
+      assertThat(statsEvent.id.diagnosticId, equalTo(diagnosticId.diagnosticId));
+      assertThat(statsEvent.id.sdkKeySuffix, equalTo(diagnosticId.sdkKeySuffix));
       assertThat(statsEvent.dataSinceDate, equalTo(dataSinceDate));
       assertThat(statsEvent.creationDate, equalTo(diagnosticStore.getDataSinceDate()));
       assertThat(statsEvent.deduplicatedUsers, equalTo(0L));
