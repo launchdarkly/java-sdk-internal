@@ -47,7 +47,7 @@ public class EventContextFormatterTest extends BaseTest {
   public static Iterable<Object[]> data() {
     return ImmutableList.of(
         new Object[] {
-            "no attributes private, single kind",
+            "no attributes private - single kind",
             LDContext.builder("my-key").kind("org")
               .name("my-name")
               .set("attr1", "value1")
@@ -57,7 +57,7 @@ public class EventContextFormatterTest extends BaseTest {
             "{\"kind\": \"org\", \"key\": \"my-key\", \"name\": \"my-name\", \"attr1\": \"value1\"}"
         },
         new Object[] {
-            "no attributes private, multi-kind",
+            "no attributes private - multi-kind",
             LDContext.createMulti(
                 LDContext.builder("org-key").kind("org")
                   .name("org-name")
