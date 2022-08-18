@@ -40,9 +40,9 @@ public class DefaultEventProcessorDiagnosticsTest extends BaseEventTest {
   public void diagnosticEventsSentToDiagnosticEndpoint() throws Exception {
     MockEventSender es = new MockEventSender();
     try (DefaultEventProcessor ep = makeEventProcessor(baseConfig(es).diagnosticStore(diagnosticStore))) {
-      MockEventSender.Params initReq = es.awaitRequest();
+      MockEventSender.Params initReq = es.awaitDiagnostic();
       ep.postDiagnostic();
-      MockEventSender.Params periodicReq = es.awaitRequest();
+      MockEventSender.Params periodicReq = es.awaitDiagnostic();
 
       assertThat(initReq.diagnostic, is(true));
       assertThat(periodicReq.diagnostic, is(true));
@@ -53,7 +53,7 @@ public class DefaultEventProcessorDiagnosticsTest extends BaseEventTest {
   public void initialDiagnosticEventHasInitBody() throws Exception {
     MockEventSender es = new MockEventSender();
     try (DefaultEventProcessor ep = makeEventProcessor(baseConfig(es).diagnosticStore(diagnosticStore))) {
-      MockEventSender.Params req = es.awaitRequest();
+      MockEventSender.Params req = es.awaitDiagnostic();
 
       DiagnosticEvent.Init initEvent = gson.fromJson(req.data, DiagnosticEvent.Init.class);
 
@@ -73,9 +73,9 @@ public class DefaultEventProcessorDiagnosticsTest extends BaseEventTest {
     long dataSinceDate = diagnosticStore.getDataSinceDate();
     try (DefaultEventProcessor ep = makeEventProcessor(baseConfig(es).diagnosticStore(diagnosticStore))) {
       // Ignore the initial diagnostic event
-      es.awaitRequest();
+      es.awaitDiagnostic();
       ep.postDiagnostic();
-      MockEventSender.Params periodicReq = es.awaitRequest();
+      MockEventSender.Params periodicReq = es.awaitDiagnostic();
 
       assertNotNull(periodicReq);
       DiagnosticEvent.Statistics statsEvent = gson.fromJson(periodicReq.data, DiagnosticEvent.Statistics.class);
@@ -104,13 +104,13 @@ public class DefaultEventProcessorDiagnosticsTest extends BaseEventTest {
     try (DefaultEventProcessor ep = makeEventProcessor(
         baseConfig(es).contextDeduplicator(contextDeduplicator).diagnosticStore(diagnosticStore))) {
       // Ignore the initial diagnostic event
-      es.awaitRequest();
+      es.awaitDiagnostic();
 
       ep.sendEvent(fe1);
       ep.sendEvent(fe2);
       ep.flush();
       // Ignore normal events
-      es.awaitRequest();
+      es.awaitAnalytics();
 
       ep.postDiagnostic();
       MockEventSender.Params periodicReq = es.awaitRequest();
@@ -133,13 +133,44 @@ public class DefaultEventProcessorDiagnosticsTest extends BaseEventTest {
     
     try (DefaultEventProcessor ep = makeEventProcessor(eventsConfig.diagnosticStore(diagnosticStore))) {
       // Ignore the initial diagnostic event
-      es.awaitRequest();
+      es.awaitDiagnostic();
 
       MockEventSender.Params periodicReq = es.awaitRequest();
 
       assertNotNull(periodicReq);
       DiagnosticEvent.Statistics statsEvent = gson.fromJson(periodicReq.data, DiagnosticEvent.Statistics.class);
       assertEquals("diagnostic", statsEvent.kind);
+    }
+  }
+
+  @Test
+  public void periodicDiagnosticEventsAreNotSentWhenInBackground() throws Exception {
+    MockEventSender es = new MockEventSender();
+    
+    EventsConfigurationBuilder eventsConfig = makeEventsConfigurationWithBriefDiagnosticInterval(es);
+    
+    try (DefaultEventProcessor ep = makeEventProcessor(eventsConfig.diagnosticStore(diagnosticStore))) {
+      // Ignore the initial diagnostic event
+      es.awaitDiagnostic();
+
+      // Expect a periodic diagnostic event
+      es.awaitDiagnostic();
+
+      // Now turn on background mode, which should make periodic events stop.
+      ep.setInBackground(true);
+      
+      try {
+        es.expectNoRequests(200);
+      } catch (AssertionError e) {
+        // Might have been a race condition where an event got scheduled before the background mode change;
+        // if so, there should be a gap with no events after that, so try the assertion again.
+        es.expectNoRequests(200);
+      }
+      
+      // Turn off background mode; periodic events should resume
+      ep.setInBackground(false);
+      
+      es.awaitDiagnostic();
     }
   }
 
@@ -161,7 +192,7 @@ public class DefaultEventProcessorDiagnosticsTest extends BaseEventTest {
     
     try (DefaultEventProcessor ep = makeEventProcessor(eventsConfig.diagnosticStore(diagnosticStore))) {
       // Ignore the initial diagnostic event
-      es.awaitRequest();
+      es.awaitDiagnostic();
 
       es.expectNoRequests(100);
     }

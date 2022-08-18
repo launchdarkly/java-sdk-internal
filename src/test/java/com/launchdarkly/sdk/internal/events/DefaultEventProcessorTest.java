@@ -65,6 +65,31 @@ public class DefaultEventProcessorTest extends BaseEventTest {
         isCustomEvent(ce)
     ));
   }
+  
+  @SuppressWarnings("unchecked")
+  @Test
+  public void eventsAreNotFlushedWhenNotConnected() throws Exception {
+    MockConnectionStatusMonitor connectionStatusMonitor = new MockConnectionStatusMonitor();
+    connectionStatusMonitor.setConnected(false);
+    MockEventSender es = new MockEventSender();
+    long briefFlushInterval = 50;
+    
+    try (DefaultEventProcessor ep = makeEventProcessor(baseConfig(es)
+        .connectionStatusMonitor(connectionStatusMonitor)
+        .flushIntervalMillis(briefFlushInterval))) {
+      Event.Custom event1 = customEvent(user, "event1").build();
+      Event.Custom event2 = customEvent(user, "event2").build();
+      ep.sendEvent(event1);
+      ep.sendEvent(event2);
+      
+      es.expectNoRequests(200);
+      
+      connectionStatusMonitor.setConnected(true);
+      
+      List<JsonTestValue> payload1 = es.getEventsFromLastRequest();
+      assertThat(payload1, contains(isCustomEvent(event1), isCustomEvent(event2)));
+    }
+  }
 
   @Test
   public void closingEventProcessorForcesSynchronousFlush() throws Exception {

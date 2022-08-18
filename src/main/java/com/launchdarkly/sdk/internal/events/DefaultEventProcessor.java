@@ -51,6 +51,7 @@ public final class DefaultEventProcessor implements Closeable {
   
   private final BlockingQueue<EventProcessorMessage> inbox;
   private final ScheduledExecutorService scheduler;
+  private final AtomicBoolean inBackground;
   private final AtomicBoolean closed = new AtomicBoolean(false);
   private final List<ScheduledFuture<?>> scheduledTasks = new ArrayList<>();
   private volatile boolean inputCapacityExceeded = false;
@@ -75,11 +76,14 @@ public final class DefaultEventProcessor implements Closeable {
     scheduler = sharedExecutor;
     this.logger = logger;
 
+    inBackground = new AtomicBoolean(eventsConfig.initiallyInBackground);
+    
     new EventDispatcher(
         eventsConfig,
         sharedExecutor,
         threadPriority,
         inbox,
+        inBackground,
         closed,
         logger
         );
@@ -121,6 +125,16 @@ public final class DefaultEventProcessor implements Closeable {
     }
   }
 
+  /**
+   * Tells the event processor whether we should be in background mode. This is only applicable in the client-side
+   * (Android) SDK. In background mode, events mostly work the same but we do not send any periodic diagnostic events.
+   * 
+   * @param inBackground true if we should be in background mode
+   */
+  public void setInBackground(boolean inBackground) {
+    this.inBackground.getAndSet(inBackground);
+  }
+  
   public void close() throws IOException {
     if (closed.compareAndSet(false, true)) {
       for (ScheduledFuture<?> task: scheduledTasks) {
@@ -229,20 +243,20 @@ public final class DefaultEventProcessor implements Closeable {
    * on its own thread.
    */
   static final class EventDispatcher {
-    private static final int MAX_FLUSH_THREADS = 5;
     private static final int MESSAGE_BATCH_SIZE = 50;
 
     final EventsConfiguration eventsConfig; // visible for testing
     private final BlockingQueue<EventProcessorMessage> inbox;
+    private final AtomicBoolean inBackground;
     private final AtomicBoolean closed;
     private final List<SendEventsTask> flushWorkers;
     private final AtomicInteger busyFlushWorkersCount;
     private final AtomicLong lastKnownPastTime = new AtomicLong(0);
     private final AtomicBoolean disabled = new AtomicBoolean(false);
+    private final AtomicBoolean didSendInitEvent = new AtomicBoolean(false);
     final DiagnosticStore diagnosticStore; // visible for testing
     private final EventContextDeduplicator contextDeduplicator;
     private final ExecutorService sharedExecutor;
-    private final SendDiagnosticTaskFactory sendDiagnosticTaskFactory;
     private final LDLogger logger;
     
     private long deduplicatedUsers = 0;
@@ -252,11 +266,13 @@ public final class DefaultEventProcessor implements Closeable {
         ExecutorService sharedExecutor,
         int threadPriority,
         BlockingQueue<EventProcessorMessage> inbox,
+        AtomicBoolean inBackground,
         AtomicBoolean closed,
         LDLogger logger
         ) {
       this.eventsConfig = eventsConfig;
       this.inbox = inbox;
+      this.inBackground = inBackground;
       this.closed = closed;
       this.sharedExecutor = sharedExecutor;
       this.diagnosticStore = eventsConfig.diagnosticStore;
@@ -295,7 +311,7 @@ public final class DefaultEventProcessor implements Closeable {
 
       flushWorkers = new ArrayList<>();
       EventResponseListener listener = this::handleResponse;
-      for (int i = 0; i < MAX_FLUSH_THREADS; i++) {
+      for (int i = 0; i < eventsConfig.eventSendingThreadPoolSize; i++) {
         SendEventsTask task = new SendEventsTask(
             eventsConfig,
             listener,
@@ -307,12 +323,8 @@ public final class DefaultEventProcessor implements Closeable {
         flushWorkers.add(task);
       }
 
-      if (diagnosticStore != null) {
-        // Set up diagnostics
-        this.sendDiagnosticTaskFactory = new SendDiagnosticTaskFactory(eventsConfig, this::handleResponse, logger);
-        sharedExecutor.submit(sendDiagnosticTaskFactory.createSendDiagnosticTask(diagnosticStore.getInitEvent()));
-      } else {
-        sendDiagnosticTaskFactory = null;
+      if (diagnosticStore != null && canSendEvents() && !inBackground.get()) {
+        sharedExecutor.submit(createSendDiagnosticTask(diagnosticStore.getInitEvent()));
       }
     }
 
@@ -361,7 +373,9 @@ public final class DefaultEventProcessor implements Closeable {
               processEvent(message.event, outbox);
               break;
             case FLUSH:
-              triggerFlush(outbox, payloadQueue);
+              if (canSendEvents()) {
+                triggerFlush(outbox, payloadQueue);
+              }
               break;
             case FLUSH_USERS:
               if (contextDeduplicator != null) {
@@ -369,7 +383,12 @@ public final class DefaultEventProcessor implements Closeable {
               }
               break;
             case DIAGNOSTIC:
-              sendAndResetDiagnostics(outbox);
+              if (canSendEvents() && !inBackground.get()) {
+                if (!didSendInitEvent.get()) {
+                  sharedExecutor.submit(createSendDiagnosticTask(diagnosticStore.getInitEvent()));
+                }
+                sendAndResetDiagnostics(outbox);
+              }
               break;
             case SYNC: // this is used only by unit tests
               waitUntilAllFlushWorkersInactive();
@@ -389,6 +408,10 @@ public final class DefaultEventProcessor implements Closeable {
       }
     }
 
+    private boolean canSendEvents() {
+      return eventsConfig.connectionStatusMonitor == null || eventsConfig.connectionStatusMonitor.isConnected();
+    }
+    
     private void sendAndResetDiagnostics(EventBuffer outbox) {
       if (disabled.get()) {
         return;
@@ -397,7 +420,7 @@ public final class DefaultEventProcessor implements Closeable {
       // We pass droppedEvents and deduplicatedUsers as parameters here because they are updated frequently in the main loop so we want to avoid synchronization on them.
       DiagnosticEvent diagnosticEvent = diagnosticStore.createEventAndReset(droppedEvents, deduplicatedUsers);
       deduplicatedUsers = 0;
-      sharedExecutor.submit(sendDiagnosticTaskFactory.createSendDiagnosticTask(diagnosticEvent));
+      sharedExecutor.submit(createSendDiagnosticTask(diagnosticEvent));
     }
 
     private void doShutdown() {
@@ -536,6 +559,29 @@ public final class DefaultEventProcessor implements Closeable {
       if (result.isMustShutDown()) {
         disabled.set(true);
       }
+    }
+
+    private Runnable createSendDiagnosticTask(final DiagnosticEvent diagnosticEvent) {
+      return new Runnable() {
+        @Override
+        public void run() {
+          try {
+            ByteArrayOutputStream buffer = new ByteArrayOutputStream(INITIAL_OUTPUT_BUFFER_SIZE);
+            Writer writer = new BufferedWriter(new OutputStreamWriter(buffer, Charset.forName("UTF-8")), INITIAL_OUTPUT_BUFFER_SIZE);
+            gson.toJson(diagnosticEvent, writer);
+            writer.flush();
+            EventSender.Result result = eventsConfig.eventSender.sendDiagnosticEvent(
+                buffer.toByteArray(), eventsConfig.eventsUri);
+            handleResponse(result);
+            if (diagnosticEvent instanceof DiagnosticEvent.Init) {
+              didSendInitEvent.set(true);
+            }
+          } catch (Exception e) {
+            logger.error("Unexpected error in event processor: {}", e.toString());
+            logger.debug(e.toString(), e);
+          }
+        }
+      };
     }
   }
   
@@ -676,44 +722,6 @@ public final class DefaultEventProcessor implements Closeable {
     void stop() {
       stopping.set(true);
       thread.interrupt();
-    }
-  }
-
-  private static final class SendDiagnosticTaskFactory {
-    private final EventsConfiguration eventsConfig;
-    private final EventResponseListener eventResponseListener;
-    private final LDLogger logger;
-
-    SendDiagnosticTaskFactory(
-        EventsConfiguration eventsConfig,
-        EventResponseListener eventResponseListener,
-        LDLogger logger
-        ) {
-      this.eventsConfig = eventsConfig;
-      this.eventResponseListener = eventResponseListener;
-      this.logger = logger;
-    }
-
-    Runnable createSendDiagnosticTask(final DiagnosticEvent diagnosticEvent) {
-      return new Runnable() {
-        @Override
-        public void run() {
-          try {
-            ByteArrayOutputStream buffer = new ByteArrayOutputStream(INITIAL_OUTPUT_BUFFER_SIZE);
-            Writer writer = new BufferedWriter(new OutputStreamWriter(buffer, Charset.forName("UTF-8")), INITIAL_OUTPUT_BUFFER_SIZE);
-            gson.toJson(diagnosticEvent, writer);
-            writer.flush();
-            EventSender.Result result = eventsConfig.eventSender.sendDiagnosticEvent(
-                buffer.toByteArray(), eventsConfig.eventsUri);
-            if (eventResponseListener != null) {
-              eventResponseListener.handleResponse(result);
-            }
-          } catch (Exception e) {
-            logger.error("Unexpected error in event processor: {}", e.toString());
-            logger.debug(e.toString(), e);
-          }
-        }
-      };
     }
   }
 }

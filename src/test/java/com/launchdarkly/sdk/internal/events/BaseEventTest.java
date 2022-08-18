@@ -28,6 +28,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.launchdarkly.testhelpers.ConcurrentHelpers.assertNoMoreValues;
 import static com.launchdarkly.testhelpers.ConcurrentHelpers.awaitValue;
@@ -40,6 +41,8 @@ import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
 import static org.hamcrest.Matchers.allOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 @SuppressWarnings("javadoc")
 public abstract class BaseEventTest extends BaseTest {
@@ -92,23 +95,29 @@ public abstract class BaseEventTest extends BaseTest {
 
   public static EventsConfiguration makeEventsConfig(boolean allAttributesPrivate,
       Collection<AttributeRef> privateAttributes) {
-    return new EventsConfiguration(
-        allAttributesPrivate,
-        0,
-        null,
-        100000, // arbitrary long flush interval
-        null,
-        null,
-        null,
-        100000, // arbitrary long flush interval
-        privateAttributes
-        );
+    return new EventsConfigurationBuilder()
+        .allAttributesPrivate(allAttributesPrivate)
+        .privateAttributes(privateAttributes == null ? null : new HashSet<>(privateAttributes))
+        .build();
   }
   
   public static EvaluationDetail<LDValue> simpleEvaluation(int variation, LDValue value) {
     return EvaluationDetail.fromValue(value, variation, EvaluationReason.off());
   }
 
+  public static final class MockConnectionStatusMonitor implements ConnectionStatusMonitor {
+    private final AtomicBoolean connected = new AtomicBoolean(true);
+    
+    @Override
+    public boolean isConnected() {
+      return connected.get();
+    }
+    
+    public void setConnected(boolean connected) {
+      this.connected.set(connected);
+    }
+  }
+  
   public static final class MockEventSender implements EventSender {
     volatile boolean closed;
     volatile Result result = new Result(true, false, null);
@@ -173,6 +182,18 @@ public abstract class BaseEventTest extends BaseTest {
     
     Params awaitRequest() {
       return awaitValue(receivedParams, 5, TimeUnit.SECONDS);
+    }
+
+    Params awaitAnalytics() {
+      Params p = awaitValue(receivedParams, 5, TimeUnit.SECONDS);
+      assertFalse("expected analytics event but got diagnostic event instead", p.diagnostic);
+      return p;
+    }
+    
+    Params awaitDiagnostic() {
+      Params p = awaitValue(receivedParams, 5, TimeUnit.SECONDS);
+      assertTrue("expected a diagnostic event but got analytics events instead", p.diagnostic);
+      return p;
     }
     
     void expectNoRequests(long timeoutMillis) {
@@ -320,24 +341,30 @@ public abstract class BaseEventTest extends BaseTest {
   public static class EventsConfigurationBuilder {
     private boolean allAttributesPrivate = false;
     private int capacity = 1000;
+    private ConnectionStatusMonitor connectionStatusMonitor = null;
     private EventContextDeduplicator contextDeduplicator = null;
     private long diagnosticRecordingIntervalMillis = 1000000;
     private DiagnosticStore diagnosticStore = null;
+    private EventSender eventSender = null;
+    private int eventSendingThreadPoolSize = EventsConfiguration.DEFAULT_EVENT_SENDING_THREAD_POOL_SIZE;
     private URI eventsUri = URI.create("not-valid");
     private long flushIntervalMillis = 1000000;
+    private boolean initiallyInBackground = false;
     private Set<AttributeRef> privateAttributes = new HashSet<>();
-    private EventSender eventSender = null;
 
     public EventsConfiguration build() {
       return new EventsConfiguration(
           allAttributesPrivate,
           capacity,
+          connectionStatusMonitor,
           contextDeduplicator,
           diagnosticRecordingIntervalMillis,
           diagnosticStore,
           eventSender,
+          eventSendingThreadPoolSize,
           eventsUri,
           flushIntervalMillis,
+          initiallyInBackground,
           privateAttributes
           );
     }
@@ -349,6 +376,11 @@ public abstract class BaseEventTest extends BaseTest {
     
     public EventsConfigurationBuilder capacity(int capacity) {
       this.capacity = capacity;
+      return this;
+    }
+
+    public EventsConfigurationBuilder connectionStatusMonitor(ConnectionStatusMonitor connectionStatusMonitor) {
+      this.connectionStatusMonitor = connectionStatusMonitor;
       return this;
     }
     
@@ -367,6 +399,16 @@ public abstract class BaseEventTest extends BaseTest {
       return this;
     }
     
+    public EventsConfigurationBuilder eventSender(EventSender eventSender) {
+      this.eventSender = eventSender;
+      return this;
+    }
+    
+    public EventsConfigurationBuilder eventSendingThreadPoolSize(int eventSendingThreadPoolSize) {
+      this.eventSendingThreadPoolSize = eventSendingThreadPoolSize;
+      return this;
+    }
+    
     public EventsConfigurationBuilder eventsUri(URI eventsUri) {
       this.eventsUri = eventsUri;
       return this;
@@ -376,14 +418,14 @@ public abstract class BaseEventTest extends BaseTest {
       this.flushIntervalMillis = flushIntervalMillis;
       return this;
     }
-    
-    public EventsConfigurationBuilder privateAttributes(Set<AttributeRef> privateAttributes) {
-      this.privateAttributes = privateAttributes;
+
+    public EventsConfigurationBuilder initiallyInBackground(boolean initiallyInBackground) {
+      this.initiallyInBackground = initiallyInBackground;
       return this;
     }
     
-    public EventsConfigurationBuilder eventSender(EventSender eventSender) {
-      this.eventSender = eventSender;
+    public EventsConfigurationBuilder privateAttributes(Set<AttributeRef> privateAttributes) {
+      this.privateAttributes = privateAttributes;
       return this;
     }
   }
