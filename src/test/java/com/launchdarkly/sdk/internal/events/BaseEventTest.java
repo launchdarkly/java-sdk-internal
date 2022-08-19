@@ -28,7 +28,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.launchdarkly.testhelpers.ConcurrentHelpers.assertNoMoreValues;
 import static com.launchdarkly.testhelpers.ConcurrentHelpers.awaitValue;
@@ -40,8 +39,8 @@ import static com.launchdarkly.testhelpers.JsonTestValue.jsonFromValue;
 import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
 import static org.hamcrest.Matchers.allOf;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 @SuppressWarnings("javadoc")
@@ -105,20 +104,22 @@ public abstract class BaseEventTest extends BaseTest {
     return EvaluationDetail.fromValue(value, variation, EvaluationReason.off());
   }
 
-  public static final class MockConnectionStatusMonitor implements ConnectionStatusMonitor {
-    private final AtomicBoolean connected = new AtomicBoolean(true);
+  static final class CapturedPayload {
+    final boolean diagnostic;
+    final String data;
+    final int eventCount;
+    final URI eventsBaseUri;
     
-    @Override
-    public boolean isConnected() {
-      return connected.get();
-    }
-    
-    public void setConnected(boolean connected) {
-      this.connected.set(connected);
+    CapturedPayload(boolean diagnostic, String data, int eventCount, URI eventsBaseUri) {
+      this.diagnostic = diagnostic;
+      this.data = data;
+      this.eventCount = eventCount;
+      assertNotNull(eventsBaseUri);
+      this.eventsBaseUri = eventsBaseUri;
     }
   }
-  
-  public static final class MockEventSender implements EventSender {
+
+  public final class MockEventSender implements EventSender {
     volatile boolean closed;
     volatile Result result = new Result(true, false, null);
     volatile RuntimeException fakeError = null;
@@ -126,30 +127,17 @@ public abstract class BaseEventTest extends BaseTest {
     volatile CountDownLatch receivedCounter = null;
     volatile Object waitSignal = null;
     
-    final BlockingQueue<Params> receivedParams = new LinkedBlockingQueue<>();
+    final BlockingQueue<CapturedPayload> receivedParams = new LinkedBlockingQueue<>();
     
-    static final class Params {
-      final boolean diagnostic;
-      final String data;
-      final int eventCount;
-      final URI eventsBaseUri;
-      
-      Params(boolean diagnostic, String data, int eventCount, URI eventsBaseUri) {
-        this.diagnostic = diagnostic;
-        this.data = data;
-        this.eventCount = eventCount;
-        assertNotNull(eventsBaseUri);
-        this.eventsBaseUri = eventsBaseUri;
-      }
-    }
-
     @Override
     public Result sendAnalyticsEvents(byte[] data, int eventCount, URI eventsBaseUri) {
+      testLogger.debug("[MockEventSender] received {} events: {}", eventCount, new String(data));
       return receive(false, data, eventCount, eventsBaseUri);
     }
 
     @Override
     public Result sendDiagnosticEvent(byte[] data, URI eventsBaseUri) {
+      testLogger.debug("[MockEventSender] received diagnostic event: {}", new String(data));
       return receive(true, data, 1, eventsBaseUri);
     }
     
@@ -162,7 +150,7 @@ public abstract class BaseEventTest extends BaseTest {
     }
 
     private Result receive(boolean diagnostic, byte[] data, int eventCount, URI eventsBaseUri) {
-      receivedParams.add(new Params(diagnostic, new String(data, Charset.forName("UTF-8")), eventCount, eventsBaseUri));
+      receivedParams.add(new CapturedPayload(diagnostic, new String(data, Charset.forName("UTF-8")), eventCount, eventsBaseUri));
       if (waitSignal != null) {
         // this is used in DefaultEventProcessorTest.eventsAreKeptInBufferIfAllFlushWorkersAreBusy 
         synchronized (waitSignal) {
@@ -180,18 +168,18 @@ public abstract class BaseEventTest extends BaseTest {
       return result;
     }
     
-    Params awaitRequest() {
+    CapturedPayload awaitRequest() {
       return awaitValue(receivedParams, 5, TimeUnit.SECONDS);
     }
 
-    Params awaitAnalytics() {
-      Params p = awaitValue(receivedParams, 5, TimeUnit.SECONDS);
+    CapturedPayload awaitAnalytics() {
+      CapturedPayload p = awaitValue(receivedParams, 5, TimeUnit.SECONDS);
       assertFalse("expected analytics event but got diagnostic event instead", p.diagnostic);
       return p;
     }
     
-    Params awaitDiagnostic() {
-      Params p = awaitValue(receivedParams, 5, TimeUnit.SECONDS);
+    CapturedPayload awaitDiagnostic() {
+      CapturedPayload p = awaitValue(receivedParams, 5, TimeUnit.SECONDS);
       assertTrue("expected a diagnostic event but got analytics events instead", p.diagnostic);
       return p;
     }
@@ -201,7 +189,7 @@ public abstract class BaseEventTest extends BaseTest {
     }
     
     List<JsonTestValue> getEventsFromLastRequest() {
-      Params p = awaitRequest();
+      CapturedPayload p = awaitRequest();
       LDValue a = LDValue.parse(p.data);
       assertEquals(p.eventCount, a.size());
       List<JsonTestValue> ret = new ArrayList<>();
@@ -341,7 +329,6 @@ public abstract class BaseEventTest extends BaseTest {
   public static class EventsConfigurationBuilder {
     private boolean allAttributesPrivate = false;
     private int capacity = 1000;
-    private ConnectionStatusMonitor connectionStatusMonitor = null;
     private EventContextDeduplicator contextDeduplicator = null;
     private long diagnosticRecordingIntervalMillis = 1000000;
     private DiagnosticStore diagnosticStore = null;
@@ -350,13 +337,13 @@ public abstract class BaseEventTest extends BaseTest {
     private URI eventsUri = URI.create("not-valid");
     private long flushIntervalMillis = 1000000;
     private boolean initiallyInBackground = false;
+    private boolean initiallyOffline = false;
     private Set<AttributeRef> privateAttributes = new HashSet<>();
 
     public EventsConfiguration build() {
       return new EventsConfiguration(
           allAttributesPrivate,
           capacity,
-          connectionStatusMonitor,
           contextDeduplicator,
           diagnosticRecordingIntervalMillis,
           diagnosticStore,
@@ -365,6 +352,7 @@ public abstract class BaseEventTest extends BaseTest {
           eventsUri,
           flushIntervalMillis,
           initiallyInBackground,
+          initiallyOffline,
           privateAttributes
           );
     }
@@ -379,11 +367,6 @@ public abstract class BaseEventTest extends BaseTest {
       return this;
     }
 
-    public EventsConfigurationBuilder connectionStatusMonitor(ConnectionStatusMonitor connectionStatusMonitor) {
-      this.connectionStatusMonitor = connectionStatusMonitor;
-      return this;
-    }
-    
     public EventsConfigurationBuilder contextDeduplicator(EventContextDeduplicator contextDeduplicator) {
       this.contextDeduplicator = contextDeduplicator;
       return this;
@@ -421,6 +404,11 @@ public abstract class BaseEventTest extends BaseTest {
 
     public EventsConfigurationBuilder initiallyInBackground(boolean initiallyInBackground) {
       this.initiallyInBackground = initiallyInBackground;
+      return this;
+    }
+
+    public EventsConfigurationBuilder initiallyOffline(boolean initiallyOffline) {
+      this.initiallyOffline = initiallyOffline;
       return this;
     }
     

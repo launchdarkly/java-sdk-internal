@@ -20,7 +20,6 @@ public final class EventsConfiguration {
   
   final boolean allAttributesPrivate;
   final int capacity;
-  final ConnectionStatusMonitor connectionStatusMonitor;
   final EventContextDeduplicator contextDeduplicator;
   final long diagnosticRecordingIntervalMillis;
   final DiagnosticStore diagnosticStore;
@@ -29,6 +28,7 @@ public final class EventsConfiguration {
   final URI eventsUri;
   final long flushIntervalMillis;
   final boolean initiallyInBackground;
+  final boolean initiallyOffline;
   final List<AttributeRef> privateAttributes;
   
   /**
@@ -36,7 +36,6 @@ public final class EventsConfiguration {
    * 
    * @param allAttributesPrivate true if all attributes are private
    * @param capacity event buffer capacity (if zero or negative, a value of 1 is used to prevent errors)
-   * @param connectionStatusMonitor optional ConnectionStatusMonitor; null for server-side SDK
    * @param contextDeduplicator optional EventContextDeduplicator; null for client-side SDK
    * @param diagnosticRecordingIntervalMillis diagnostic recording interval
    * @param diagnosticStore optional DiagnosticStore; null if diagnostics are disabled
@@ -46,12 +45,13 @@ public final class EventsConfiguration {
    * @param flushIntervalMillis event flush interval
    * @param initiallyInBackground true if we should start out in background mode (see
    *   {@link DefaultEventProcessor#setInBackground(boolean)})
+   * @param initiallyOffline true if we should start out in offline mode (see
+   *   {@link DefaultEventProcessor#setOffline(boolean)})
    * @param privateAttributes list of private attribute references; may be null
    */
   public EventsConfiguration(
       boolean allAttributesPrivate,
       int capacity,
-      ConnectionStatusMonitor connectionStatusMonitor,
       EventContextDeduplicator contextDeduplicator,
       long diagnosticRecordingIntervalMillis,
       DiagnosticStore diagnosticStore,
@@ -60,12 +60,12 @@ public final class EventsConfiguration {
       URI eventsUri,
       long flushIntervalMillis,
       boolean initiallyInBackground,
+      boolean initiallyOffline,
       Collection<AttributeRef> privateAttributes
       ) {
     super();
     this.allAttributesPrivate = allAttributesPrivate;
     this.capacity = capacity >= 0 ? capacity : 1;
-    this.connectionStatusMonitor = connectionStatusMonitor;
     this.contextDeduplicator = contextDeduplicator;
     this.diagnosticRecordingIntervalMillis = diagnosticRecordingIntervalMillis;
     this.diagnosticStore = diagnosticStore;
@@ -75,6 +75,7 @@ public final class EventsConfiguration {
     this.eventsUri = eventsUri;
     this.flushIntervalMillis = flushIntervalMillis;
     this.initiallyInBackground = initiallyInBackground;
+    this.initiallyOffline = initiallyOffline;
     this.privateAttributes = privateAttributes == null ? Collections.emptyList() : new ArrayList<>(privateAttributes);
   }
 }

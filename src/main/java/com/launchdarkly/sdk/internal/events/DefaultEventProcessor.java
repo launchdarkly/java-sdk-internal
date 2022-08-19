@@ -49,11 +49,17 @@ public final class DefaultEventProcessor implements Closeable {
 
   private static final Gson gson = new Gson();
   
+  private final EventsConfiguration eventsConfig;
   private final BlockingQueue<EventProcessorMessage> inbox;
   private final ScheduledExecutorService scheduler;
+  private final AtomicBoolean offline;
   private final AtomicBoolean inBackground;
+  private final AtomicBoolean diagnosticInitSent = new AtomicBoolean(false);
   private final AtomicBoolean closed = new AtomicBoolean(false);
-  private final List<ScheduledFuture<?>> scheduledTasks = new ArrayList<>();
+  private final Object stateLock = new Object();
+  private ScheduledFuture<?> eventFlushTask;
+  private ScheduledFuture<?> contextKeysFlushTask;
+  private ScheduledFuture<?> periodicDiagnosticEventTask;
   private volatile boolean inputCapacityExceeded = false;
   private final LDLogger logger;
 
@@ -71,12 +77,14 @@ public final class DefaultEventProcessor implements Closeable {
       int threadPriority,
       LDLogger logger
       ) {
+    this.eventsConfig = eventsConfig;
     inbox = new ArrayBlockingQueue<>(eventsConfig.capacity);
     
     scheduler = sharedExecutor;
     this.logger = logger;
 
     inBackground = new AtomicBoolean(eventsConfig.initiallyInBackground);
+    offline = new AtomicBoolean(eventsConfig.initiallyOffline);
     
     new EventDispatcher(
         eventsConfig,
@@ -84,24 +92,19 @@ public final class DefaultEventProcessor implements Closeable {
         threadPriority,
         inbox,
         inBackground,
+        offline,
         closed,
         logger
         );
     // we don't need to save a reference to this - we communicate with it entirely through the inbox queue.
 
-    Runnable flusher = postMessageRunnable(MessageType.FLUSH, null);
-    scheduledTasks.add(this.scheduler.scheduleAtFixedRate(flusher, eventsConfig.flushIntervalMillis,
-        eventsConfig.flushIntervalMillis, TimeUnit.MILLISECONDS));
+    // Decide whether to start scheduled tasks that depend on the background/offline state.
+    updateScheduledTasks(eventsConfig.initiallyInBackground, eventsConfig.initiallyOffline);
+    
+    // The context keys flush task should always be scheduled, if a contextDeduplicator exists.
     if (eventsConfig.contextDeduplicator != null && eventsConfig.contextDeduplicator.getFlushInterval() != null) {
-      Runnable userKeysFlusher = postMessageRunnable(MessageType.FLUSH_USERS, null);
-      long intervalMillis = eventsConfig.contextDeduplicator.getFlushInterval().longValue();
-      scheduledTasks.add(this.scheduler.scheduleAtFixedRate(userKeysFlusher, intervalMillis,
-          intervalMillis, TimeUnit.MILLISECONDS));
-    }
-    if (eventsConfig.diagnosticStore != null) {
-      Runnable diagnosticsTrigger = postMessageRunnable(MessageType.DIAGNOSTIC, null);
-      scheduledTasks.add(this.scheduler.scheduleAtFixedRate(diagnosticsTrigger, eventsConfig.diagnosticRecordingIntervalMillis,
-          eventsConfig.diagnosticRecordingIntervalMillis, TimeUnit.MILLISECONDS));
+      contextKeysFlushTask = enableOrDisableTask(true, null,
+          eventsConfig.contextDeduplicator.getFlushInterval().longValue(), MessageType.FLUSH_USERS);
     }
   }
 
@@ -132,25 +135,97 @@ public final class DefaultEventProcessor implements Closeable {
    * @param inBackground true if we should be in background mode
    */
   public void setInBackground(boolean inBackground) {
-    this.inBackground.getAndSet(inBackground);
+    synchronized (stateLock) {
+      if (this.inBackground.getAndSet(inBackground) == inBackground) {
+        // value was unchanged - nothing to do
+        return;
+      }
+      updateScheduledTasks(inBackground, offline.get());
+    }
+  }
+  
+  /**
+   * Tells the event processor whether we should be in background mode. This is only applicable in the client-side
+   * (Android) SDK; in the server-side Java SDK, offline mode does not change dynamically and so we don't even
+   * bother to create an event processor if we're offline. In offline mode, events are enqueued but never flushed,
+   * and diagnostic events are not sent.
+   * 
+   * @param offline true if we should be in offline mode
+   */
+  public void setOffline(boolean offline) {
+    synchronized (stateLock) {
+      if (this.offline.getAndSet(offline) == offline) {
+        // value was unchanged - nothing to do
+        return;
+      }
+      updateScheduledTasks(inBackground.get(), offline);
+    }
   }
   
   public void close() throws IOException {
     if (closed.compareAndSet(false, true)) {
-      for (ScheduledFuture<?> task: scheduledTasks) {
-        task.cancel(false);
+      synchronized (stateLock) {
+        eventFlushTask = enableOrDisableTask(false, eventFlushTask, 0, null);
+        contextKeysFlushTask = enableOrDisableTask(false, contextKeysFlushTask, 0, null);
+        periodicDiagnosticEventTask = enableOrDisableTask(false, periodicDiagnosticEventTask, 0, null);
       }
       postMessageAsync(MessageType.FLUSH, null);
       postMessageAndWait(MessageType.SHUTDOWN, null);
     }
   }
 
+  void updateScheduledTasks(boolean inBackground, boolean offline) {
+    // The event flush task should be scheduled unless we're offline.
+    eventFlushTask = enableOrDisableTask(
+        !offline,
+        eventFlushTask,
+        eventsConfig.flushIntervalMillis,
+        MessageType.FLUSH
+        );
+    
+    // The periodic diagnostic event task should be scheduled unless we're offline or in the background
+    // or there is no diagnostic store.
+    periodicDiagnosticEventTask = enableOrDisableTask(
+        !offline && !inBackground && eventsConfig.diagnosticStore != null,
+        periodicDiagnosticEventTask,
+        eventsConfig.diagnosticRecordingIntervalMillis,
+        MessageType.DIAGNOSTIC_STATS
+        );
+    
+    if (!inBackground && !offline && !diagnosticInitSent.get() && eventsConfig.diagnosticStore != null) {
+      // Trigger a diagnostic init event if we never had the chance to send one before
+      postMessageAsync(MessageType.DIAGNOSTIC_INIT, null);
+    }
+  }
+  
+  ScheduledFuture<?> enableOrDisableTask(
+      boolean shouldEnable,
+      ScheduledFuture<?> currentTask,
+      long intervalMillis,
+      MessageType messageType
+      ) {
+    if (shouldEnable) {
+      if (currentTask != null) {
+        return currentTask;
+      }
+      ScheduledFuture<?> task = this.scheduler.scheduleAtFixedRate(
+          postMessageRunnable(messageType, null),
+          intervalMillis, intervalMillis, TimeUnit.MILLISECONDS);
+      return task;
+    } else {
+      if (currentTask != null) {
+        currentTask.cancel(false);
+      }
+      return null;
+    }
+  }
+  
   void waitUntilInactive() throws IOException { // visible for testing
     postMessageAndWait(MessageType.SYNC, null);
   }
 
   void postDiagnostic() { // visible for testing
-    postMessageAsync(MessageType.DIAGNOSTIC, null);
+    postMessageAsync(MessageType.DIAGNOSTIC_STATS, null);
   }
 
   private void postMessageAsync(MessageType type, Event event) {
@@ -194,7 +269,8 @@ public final class DefaultEventProcessor implements Closeable {
     EVENT,
     FLUSH,
     FLUSH_USERS,
-    DIAGNOSTIC,
+    DIAGNOSTIC_INIT,
+    DIAGNOSTIC_STATS,
     SYNC,
     SHUTDOWN
   }
@@ -248,6 +324,7 @@ public final class DefaultEventProcessor implements Closeable {
     final EventsConfiguration eventsConfig; // visible for testing
     private final BlockingQueue<EventProcessorMessage> inbox;
     private final AtomicBoolean inBackground;
+    private final AtomicBoolean offline;
     private final AtomicBoolean closed;
     private final List<SendEventsTask> flushWorkers;
     private final AtomicInteger busyFlushWorkersCount;
@@ -267,12 +344,14 @@ public final class DefaultEventProcessor implements Closeable {
         int threadPriority,
         BlockingQueue<EventProcessorMessage> inbox,
         AtomicBoolean inBackground,
+        AtomicBoolean offline,
         AtomicBoolean closed,
         LDLogger logger
         ) {
       this.eventsConfig = eventsConfig;
       this.inbox = inbox;
       this.inBackground = inBackground;
+      this.offline = offline;
       this.closed = closed;
       this.sharedExecutor = sharedExecutor;
       this.diagnosticStore = eventsConfig.diagnosticStore;
@@ -322,10 +401,6 @@ public final class DefaultEventProcessor implements Closeable {
             );
         flushWorkers.add(task);
       }
-
-      if (diagnosticStore != null && canSendEvents() && !inBackground.get()) {
-        sharedExecutor.submit(createSendDiagnosticTask(diagnosticStore.getInitEvent()));
-      }
     }
 
     private void onUncaughtException(Thread thread, Throwable e) {
@@ -373,7 +448,7 @@ public final class DefaultEventProcessor implements Closeable {
               processEvent(message.event, outbox);
               break;
             case FLUSH:
-              if (canSendEvents()) {
+              if (!offline.get()) {
                 triggerFlush(outbox, payloadQueue);
               }
               break;
@@ -382,11 +457,13 @@ public final class DefaultEventProcessor implements Closeable {
                 contextDeduplicator.flush();
               }
               break;
-            case DIAGNOSTIC:
-              if (canSendEvents() && !inBackground.get()) {
-                if (!didSendInitEvent.get()) {
-                  sharedExecutor.submit(createSendDiagnosticTask(diagnosticStore.getInitEvent()));
-                }
+            case DIAGNOSTIC_INIT:
+              if (!offline.get() && !inBackground.get() && !didSendInitEvent.get()) {
+                sharedExecutor.submit(createSendDiagnosticTask(diagnosticStore.getInitEvent()));
+              }
+              break;
+            case DIAGNOSTIC_STATS:
+              if (!offline.get() && !inBackground.get()) {
                 sendAndResetDiagnostics(outbox);
               }
               break;
@@ -408,10 +485,6 @@ public final class DefaultEventProcessor implements Closeable {
       }
     }
 
-    private boolean canSendEvents() {
-      return eventsConfig.connectionStatusMonitor == null || eventsConfig.connectionStatusMonitor.isConnected();
-    }
-    
     private void sendAndResetDiagnostics(EventBuffer outbox) {
       if (disabled.get()) {
         return;

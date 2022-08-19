@@ -69,14 +69,12 @@ public class DefaultEventProcessorTest extends BaseEventTest {
   @SuppressWarnings("unchecked")
   @Test
   public void eventsAreNotFlushedWhenNotConnected() throws Exception {
-    MockConnectionStatusMonitor connectionStatusMonitor = new MockConnectionStatusMonitor();
-    connectionStatusMonitor.setConnected(false);
     MockEventSender es = new MockEventSender();
     long briefFlushInterval = 50;
     
     try (DefaultEventProcessor ep = makeEventProcessor(baseConfig(es)
-        .connectionStatusMonitor(connectionStatusMonitor)
-        .flushIntervalMillis(briefFlushInterval))) {
+        .flushIntervalMillis(briefFlushInterval)
+        .initiallyOffline(true))) {
       Event.Custom event1 = customEvent(user, "event1").build();
       Event.Custom event2 = customEvent(user, "event2").build();
       ep.sendEvent(event1);
@@ -84,7 +82,7 @@ public class DefaultEventProcessorTest extends BaseEventTest {
       
       es.expectNoRequests(200);
       
-      connectionStatusMonitor.setConnected(true);
+      ep.setOffline(false);
       
       List<JsonTestValue> payload1 = es.getEventsFromLastRequest();
       assertThat(payload1, contains(isCustomEvent(event1), isCustomEvent(event2)));
@@ -171,7 +169,7 @@ public class DefaultEventProcessorTest extends BaseEventTest {
       ep.sendEvent(e);
     }
 
-    MockEventSender.Params p = es.awaitRequest();
+    CapturedPayload p = es.awaitRequest();
     assertThat(p.eventsBaseUri, equalTo(uri));
   }
   

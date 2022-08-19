@@ -40,9 +40,9 @@ public class DefaultEventProcessorDiagnosticsTest extends BaseEventTest {
   public void diagnosticEventsSentToDiagnosticEndpoint() throws Exception {
     MockEventSender es = new MockEventSender();
     try (DefaultEventProcessor ep = makeEventProcessor(baseConfig(es).diagnosticStore(diagnosticStore))) {
-      MockEventSender.Params initReq = es.awaitDiagnostic();
+      CapturedPayload initReq = es.awaitDiagnostic();
       ep.postDiagnostic();
-      MockEventSender.Params periodicReq = es.awaitDiagnostic();
+      CapturedPayload periodicReq = es.awaitDiagnostic();
 
       assertThat(initReq.diagnostic, is(true));
       assertThat(periodicReq.diagnostic, is(true));
@@ -53,7 +53,7 @@ public class DefaultEventProcessorDiagnosticsTest extends BaseEventTest {
   public void initialDiagnosticEventHasInitBody() throws Exception {
     MockEventSender es = new MockEventSender();
     try (DefaultEventProcessor ep = makeEventProcessor(baseConfig(es).diagnosticStore(diagnosticStore))) {
-      MockEventSender.Params req = es.awaitDiagnostic();
+      CapturedPayload req = es.awaitDiagnostic();
 
       DiagnosticEvent.Init initEvent = gson.fromJson(req.data, DiagnosticEvent.Init.class);
 
@@ -75,7 +75,7 @@ public class DefaultEventProcessorDiagnosticsTest extends BaseEventTest {
       // Ignore the initial diagnostic event
       es.awaitDiagnostic();
       ep.postDiagnostic();
-      MockEventSender.Params periodicReq = es.awaitDiagnostic();
+      CapturedPayload periodicReq = es.awaitDiagnostic();
 
       assertNotNull(periodicReq);
       DiagnosticEvent.Statistics statsEvent = gson.fromJson(periodicReq.data, DiagnosticEvent.Statistics.class);
@@ -113,7 +113,7 @@ public class DefaultEventProcessorDiagnosticsTest extends BaseEventTest {
       es.awaitAnalytics();
 
       ep.postDiagnostic();
-      MockEventSender.Params periodicReq = es.awaitRequest();
+      CapturedPayload periodicReq = es.awaitRequest();
 
       assertNotNull(periodicReq);
       DiagnosticEvent.Statistics statsEvent = gson.fromJson(periodicReq.data, DiagnosticEvent.Statistics.class);
@@ -135,7 +135,7 @@ public class DefaultEventProcessorDiagnosticsTest extends BaseEventTest {
       // Ignore the initial diagnostic event
       es.awaitDiagnostic();
 
-      MockEventSender.Params periodicReq = es.awaitRequest();
+      CapturedPayload periodicReq = es.awaitRequest();
 
       assertNotNull(periodicReq);
       DiagnosticEvent.Statistics statsEvent = gson.fromJson(periodicReq.data, DiagnosticEvent.Statistics.class);
@@ -206,7 +206,7 @@ public class DefaultEventProcessorDiagnosticsTest extends BaseEventTest {
     try (DefaultEventProcessor ep = makeEventProcessor(baseConfig(es).eventsUri(uri).diagnosticStore(diagnosticStore))) {
     }
 
-    MockEventSender.Params p = es.awaitRequest();
+    CapturedPayload p = es.awaitRequest();
     assertThat(p.eventsBaseUri, equalTo(uri));
   }
 }
