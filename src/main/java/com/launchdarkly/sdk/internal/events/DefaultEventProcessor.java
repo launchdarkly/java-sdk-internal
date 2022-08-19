@@ -44,7 +44,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * incrementing summary counters. When events are ready to deliver, it uses an
  * implementation of EventSender (normally DefaultEventSender) to deliver the JSON data.
  */
-public final class DefaultEventProcessor implements Closeable {
+public final class DefaultEventProcessor implements Closeable, EventProcessor {
   private static final int INITIAL_OUTPUT_BUFFER_SIZE = 2000;
 
   private static final Gson gson = new Gson();
@@ -108,41 +108,28 @@ public final class DefaultEventProcessor implements Closeable {
     }
   }
 
-  /**
-   * Enqueues an event.
-   * 
-   * @param e the input data
-   */
+  @Override
   public void sendEvent(Event e) {
     if (!closed.get()) {
       postMessageAsync(MessageType.EVENT, e);
     }
   }
 
-  /**
-   * Schedules an asynchronous flush.
-   */
+  @Override
   public void flushAsync() {
     if (!closed.get()) {
       postMessageAsync(MessageType.FLUSH, null);
     }
   }
 
-  /**
-   * Flushes and blocks until the flush is done.
-   */
+  @Override
   public void flushBlocking() {
     if (!closed.get()) {
       postMessageAndWait(MessageType.FLUSH, null);
     }
   }
 
-  /**
-   * Tells the event processor whether we should be in background mode. This is only applicable in the client-side
-   * (Android) SDK. In background mode, events mostly work the same but we do not send any periodic diagnostic events.
-   * 
-   * @param inBackground true if we should be in background mode
-   */
+  @Override
   public void setInBackground(boolean inBackground) {
     synchronized (stateLock) {
       if (this.inBackground.getAndSet(inBackground) == inBackground) {
@@ -153,14 +140,7 @@ public final class DefaultEventProcessor implements Closeable {
     }
   }
   
-  /**
-   * Tells the event processor whether we should be in background mode. This is only applicable in the client-side
-   * (Android) SDK; in the server-side Java SDK, offline mode does not change dynamically and so we don't even
-   * bother to create an event processor if we're offline. In offline mode, events are enqueued but never flushed,
-   * and diagnostic events are not sent.
-   * 
-   * @param offline true if we should be in offline mode
-   */
+  @Override
   public void setOffline(boolean offline) {
     synchronized (stateLock) {
       if (this.offline.getAndSet(offline) == offline) {
