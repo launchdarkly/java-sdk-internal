@@ -1,5 +1,6 @@
 package com.launchdarkly.sdk.internal.events;
 
+import com.launchdarkly.sdk.internal.http.HeadersTransformer;
 import com.launchdarkly.sdk.internal.http.HttpProperties;
 import com.launchdarkly.testhelpers.httptest.Handler;
 import com.launchdarkly.testhelpers.httptest.Handlers;
@@ -46,7 +47,7 @@ public class DefaultEventSenderTest extends BaseEventTest {
   }
   
   private EventSender makeEventSender() {
-    return makeEventSender(defaultHttpProperties());
+    return makeEventSender(HttpProperties.defaults());
   }
 
   private EventSender makeEventSender(HttpProperties httpProperties) {
@@ -92,7 +93,7 @@ public class DefaultEventSenderTest extends BaseEventTest {
     Map<String, String> headers = new HashMap<>();
     headers.put("name1", "value1");
     headers.put("name2", "value2");
-    HttpProperties httpProperties = new HttpProperties(0, headers, null, null, null, 0, null, null);
+    HttpProperties httpProperties = new HttpProperties(0, headers, null, null, null, null, 0, null, null);
     
     try (HttpServer server = HttpServer.start(eventsSuccessResponse())) {
       try (EventSender es = makeEventSender(httpProperties)) {
@@ -111,7 +112,7 @@ public class DefaultEventSenderTest extends BaseEventTest {
     Map<String, String> headers = new HashMap<>();
     headers.put("name1", "value1");
     headers.put("name2", "value2");
-    HttpProperties httpProperties = new HttpProperties(0, headers, null, null, null, 0, null, null);
+    HttpProperties httpProperties = new HttpProperties(0, headers, null, null, null, null, 0, null, null);
     
     try (HttpServer server = HttpServer.start(eventsSuccessResponse())) {
       try (EventSender es = makeEventSender(httpProperties)) {
@@ -122,6 +123,30 @@ public class DefaultEventSenderTest extends BaseEventTest {
       for (Map.Entry<String, String> kv: headers.entrySet()) {
         assertThat(req.getHeader(kv.getKey()), equalTo(kv.getValue()));
       }
+    }
+  }
+
+  @Test
+  public void headersTransformerIsApplied() throws Exception {
+    Map<String, String> headers = new HashMap<>();
+    headers.put("name1", "value1");
+    headers.put("name2", "value2");
+    HeadersTransformer headersTransformer = new HeadersTransformer() {
+      @Override
+      public void updateHeaders(Map<String, String> h) {
+        h.put("name1", h.get("name1") + "a");
+      }
+    };
+    HttpProperties httpProperties = new HttpProperties(0, headers, headersTransformer, null, null, null, 0, null, null);
+    
+    try (HttpServer server = HttpServer.start(eventsSuccessResponse())) {
+      try (EventSender es = makeEventSender(httpProperties)) {
+        es.sendAnalyticsEvents(FAKE_DATA_BYTES, 1, server.getUri());
+      }
+      
+      RequestInfo req = server.getRecorder().requireRequest();
+      assertThat(req.getHeader("name1"), equalTo("value1a"));
+      assertThat(req.getHeader("name2"), equalTo("value2"));
     }
   }
 

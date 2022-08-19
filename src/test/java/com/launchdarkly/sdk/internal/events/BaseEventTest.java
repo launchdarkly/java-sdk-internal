@@ -9,7 +9,6 @@ import com.launchdarkly.sdk.LDContext;
 import com.launchdarkly.sdk.LDValue;
 import com.launchdarkly.sdk.ObjectBuilder;
 import com.launchdarkly.sdk.internal.BaseTest;
-import com.launchdarkly.sdk.internal.http.HttpProperties;
 import com.launchdarkly.testhelpers.JsonAssertions;
 import com.launchdarkly.testhelpers.JsonTestValue;
 
@@ -68,10 +67,6 @@ public abstract class BaseEventTest extends BaseTest {
     return new EventsConfigurationBuilder().eventSender(es);
   }
 
-  public static HttpProperties defaultHttpProperties() {
-    return new HttpProperties(0, null, null, null, null, 0, null, null);
-  }
-  
   public DefaultEventProcessor makeEventProcessor(EventsConfigurationBuilder ec) {
     return makeEventProcessor(ec, null);
   }

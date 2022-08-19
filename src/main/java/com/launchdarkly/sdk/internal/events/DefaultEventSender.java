@@ -42,6 +42,7 @@ public final class DefaultEventSender implements EventSender {
   private static final Object HTTP_DATE_FORMAT_LOCK = new Object(); // synchronize on this because DateFormat isn't thread-safe
 
   private final OkHttpClient httpClient;
+  private final boolean shouldCloseHttpClient;
   private final Headers baseHeaders;
   final long retryDelayMillis; // visible for testing
   private final LDLogger logger;
@@ -58,7 +59,13 @@ public final class DefaultEventSender implements EventSender {
       long retryDelayMillis,
       LDLogger logger
       ) {
-    this.httpClient = httpProperties.toHttpClientBuilder().build();
+    if (httpProperties.getSharedHttpClient() == null) {
+      this.httpClient = httpProperties.toHttpClientBuilder().build();
+      shouldCloseHttpClient = true;
+    } else {
+      this.httpClient = httpProperties.getSharedHttpClient();
+      shouldCloseHttpClient = false;
+    }
     this.logger = logger;
 
     this.baseHeaders = httpProperties.toHeadersBuilder()
@@ -70,7 +77,9 @@ public final class DefaultEventSender implements EventSender {
   
   @Override
   public void close() throws IOException {
-    HttpProperties.shutdownHttpClient(httpClient);
+    if (shouldCloseHttpClient) {
+      HttpProperties.shutdownHttpClient(httpClient);
+    }
   }
   
   @Override
