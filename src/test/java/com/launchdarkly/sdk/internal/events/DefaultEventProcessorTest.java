@@ -191,7 +191,7 @@ public class DefaultEventProcessorTest extends BaseEventTest {
         // delay to keep EventDispatcher from being overwhelmed
         Thread.sleep(10);
       }
-      ep.flush();
+      ep.flushAsync();
       assertThat(es.getEventsFromLastRequest(), Matchers.iterableWithSize(capacity));
     }
   }
@@ -219,7 +219,7 @@ public class DefaultEventProcessorTest extends BaseEventTest {
         Thread.sleep(10);
       }
       
-      ep.flush();
+      ep.flushAsync();
       List<JsonTestValue> eventsReceived = es.getEventsFromLastRequest(); 
       
       assertThat(eventsReceived, Matchers.iterableWithSize(capacity + 1));
@@ -234,14 +234,14 @@ public class DefaultEventProcessorTest extends BaseEventTest {
     
     try (DefaultEventProcessor ep = makeEventProcessor(baseConfig(es))) {
       ep.sendEvent(identifyEvent(user));
-      ep.flush();
+      ep.flushAsync();
       es.awaitRequest();
       
       // allow a little time for the event processor to pass the "must shut down" signal back from the sender
       Thread.sleep(50);
       
       ep.sendEvent(identifyEvent(user));
-      ep.flush();
+      ep.flushAsync();
       es.expectNoRequests(100);
     }
   }
@@ -254,7 +254,7 @@ public class DefaultEventProcessorTest extends BaseEventTest {
       ep.close();
       
       ep.sendEvent(identifyEvent(user));
-      ep.flush();
+      ep.flushAsync();
       
       es.expectNoRequests(100);
     }
@@ -268,14 +268,14 @@ public class DefaultEventProcessorTest extends BaseEventTest {
       es.fakeError = new RuntimeException("sorry");
       
       ep.sendEvent(identifyEvent(user));
-      ep.flush();
+      ep.flushAsync();
       es.awaitRequest();
       // MockEventSender now throws an unchecked exception up to EventProcessor's flush worker -
       // verify that a subsequent flush still works
       
       es.fakeError = null;
       ep.sendEvent(identifyEvent(user));
-      ep.flush();
+      ep.flushAsync();
       es.awaitRequest();
     }
   }
@@ -306,7 +306,7 @@ public class DefaultEventProcessorTest extends BaseEventTest {
     try (DefaultEventProcessor ep = makeEventProcessor(baseConfig(es))) {
       for (int i = 0; i < 5; i++) {
         ep.sendEvent(identifyEvent(user));
-        ep.flush();
+        ep.flushAsync();
         es.awaitRequest(); // we don't need to see this payload, just throw it away
       }
       
@@ -320,14 +320,14 @@ public class DefaultEventProcessorTest extends BaseEventTest {
       // becomes free.
       Event.Identify event1 = identifyEvent(testUser1);
       ep.sendEvent(event1);
-      ep.flush();
+      ep.flushAsync();
       
       // Do an additional flush with another event. This time, the event processor should see that there's
       // no space available and simply ignore the flush request. There's no way to verify programmatically
       // that this has happened, so just give it a short delay.
       Event.Identify event2 = identifyEvent(testUser2);
       ep.sendEvent(event2);
-      ep.flush();
+      ep.flushAsync();
       Thread.sleep(100);
       
       // Enqueue a third event. The current payload should now be event2 + event3.
@@ -343,7 +343,7 @@ public class DefaultEventProcessorTest extends BaseEventTest {
       assertThat(es.getEventsFromLastRequest(), contains(isIdentifyEvent(event1, testUserJson1)));
 
       // Now a flush should succeed and send the current payload.
-      ep.flush();
+      ep.flushAsync();
       assertThat(es.getEventsFromLastRequest(), contains(
           isIdentifyEvent(event2, testUserJson2),
           isIdentifyEvent(event3, testUserJson3)));

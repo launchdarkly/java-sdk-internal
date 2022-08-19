@@ -108,7 +108,7 @@ public class DefaultEventProcessorDiagnosticsTest extends BaseEventTest {
 
       ep.sendEvent(fe1);
       ep.sendEvent(fe2);
-      ep.flush();
+      ep.flushAsync();
       // Ignore normal events
       es.awaitAnalytics();
 

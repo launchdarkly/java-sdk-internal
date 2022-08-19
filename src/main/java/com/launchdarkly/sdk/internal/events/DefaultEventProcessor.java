@@ -122,9 +122,18 @@ public final class DefaultEventProcessor implements Closeable {
   /**
    * Schedules an asynchronous flush.
    */
-  public void flush() {
+  public void flushAsync() {
     if (!closed.get()) {
       postMessageAsync(MessageType.FLUSH, null);
+    }
+  }
+
+  /**
+   * Flushes and blocks until the flush is done.
+   */
+  public void flushBlocking() {
+    if (!closed.get()) {
+      postMessageAndWait(MessageType.FLUSH, null);
     }
   }
 
