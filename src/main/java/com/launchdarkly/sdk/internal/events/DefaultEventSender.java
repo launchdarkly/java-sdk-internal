@@ -36,12 +36,14 @@ public final class DefaultEventSender implements EventSender {
   public static final long DEFAULT_RETRY_DELAY_MILLIS = 1000;
   
   /**
-   * Default value for {@code analyticsRequestPath} parameter.
+   * Default value for {@code analyticsRequestPath} parameter, for the server-side SDK.
+   * The Android SDK should modify this value.
    */
   public static final String DEFAULT_ANALYTICS_REQUEST_PATH = "/bulk";
 
   /**
-   * Default value for {@code diagnosticRequestPath} parameter.
+   * Default value for {@code diagnosticRequestPath} parameter, for the server-side SDK.
+   * The Android SDK should modify this value.
    */
   public static final String DEFAULT_DIAGNOSTIC_REQUEST_PATH = "/diagnostic";
   
