@@ -27,8 +27,6 @@ workflows:
       - test-windows:
           name: Java 11 - Windows - OpenJDK
           openjdk-version: 11.0.2.01
-          requires:
-            - build-linux
       - test-windows:
           name: Java 17 - Windows - OpenJDK
           openjdk-version: 17.0.1
