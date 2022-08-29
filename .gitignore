@@ -18,5 +18,5 @@ out/
 classes/
 
 # Test code that gets temporarily copied by our Android CI build
-src/androidTest/java/com/launchdarkly/sdk/**/*.java
-!src/androidTest/java/com/launchdarkly/sdk/BaseTest.java
+src/androidTest/java/com/launchdarkly/sdk/internal/**/*.java
+!src/androidTest/java/com/launchdarkly/sdk/internal/BaseTest.java
