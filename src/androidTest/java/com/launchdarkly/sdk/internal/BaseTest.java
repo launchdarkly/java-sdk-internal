@@ -8,5 +8,5 @@ import org.junit.runner.RunWith;
  * the correct test runner.
  */
 @RunWith(AndroidJUnit4.class)
-public abstract class BaseTest {
+public abstract class BaseTest extends BaseInternalTest {
 }

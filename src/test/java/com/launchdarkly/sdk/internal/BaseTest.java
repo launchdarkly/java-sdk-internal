@@ -7,5 +7,5 @@ package com.launchdarkly.sdk.internal;
  * this class with another version (from src/androidTest/java) that has the necessary Android test
  * runner annotation on it.
  */
-public abstract class BaseTest {
+public abstract class BaseTest extends BaseInternalTest {
 }

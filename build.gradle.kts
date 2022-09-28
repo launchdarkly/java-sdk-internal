@@ -46,6 +46,7 @@ dependencies {  // see Dependencies.kt in buildSrc
     Libs.javaTestImplementation.forEach { testImplementation(it) }
 
     testImplementation("com.launchdarkly:test-helpers:${Versions.testHelpers}")
+    // see build-android.gradle about the reason for special-casing this
 }
 
 checkstyle {
