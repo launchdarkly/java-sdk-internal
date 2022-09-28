@@ -249,35 +249,6 @@ public class DefaultEventSenderTest extends BaseEventTest {
     }
   }
 
-//  @Test
-//  public void testSpecialHttpConfigurations() throws Exception {
-//    Handler handler = eventsSuccessResponse();
-//    
-//    TestHttpUtil.testWithSpecialHttpConfigurations(handler,
-//        (targetUri, goodHttpConfig) -> {
-//          HttpConfiguration config = goodHttpConfig.createHttpConfiguration(clientContext("", LDConfig.DEFAULT));
-//          
-//          try (EventSender es = makeEventSender(ComponentsImpl.toHttpProperties(config))) {
-//            EventSender.Result result = es.sendAnalyticsEvents(FAKE_DATA_BYTES, 1, targetUri);
-//            
-//            assertTrue(result.isSuccess());
-//            assertFalse(result.isMustShutDown());
-//          }
-//        },
-//        
-//        (targetUri, badHttpConfig) -> {
-//          HttpConfiguration config = badHttpConfig.createHttpConfiguration(clientContext("", LDConfig.DEFAULT));
-// 
-//          try (EventSender es = makeEventSender(ComponentsImpl.toHttpProperties(config))) {
-//            EventSender.Result result = es.sendAnalyticsEvents(FAKE_DATA_BYTES, 1, targetUri);
-//            
-//            assertFalse(result.isSuccess());
-//            assertFalse(result.isMustShutDown());
-//          }
-//        }
-//        );
-//  }
-  
   @Test
   public void baseUriDoesNotNeedTrailingSlash() throws Exception {
     try (HttpServer server = HttpServer.start(eventsSuccessResponse())) {
