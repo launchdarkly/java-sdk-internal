@@ -9,7 +9,6 @@ import com.launchdarkly.sdk.LDContext;
 import com.launchdarkly.sdk.LDValue;
 import com.launchdarkly.sdk.ObjectBuilder;
 import com.launchdarkly.sdk.internal.BaseTest;
-import com.launchdarkly.sdk.internal.http.HttpProperties;
 import com.launchdarkly.testhelpers.JsonAssertions;
 import com.launchdarkly.testhelpers.JsonTestValue;
 
@@ -39,7 +38,9 @@ import static com.launchdarkly.testhelpers.JsonTestValue.jsonFromValue;
 import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
 import static org.hamcrest.Matchers.allOf;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 @SuppressWarnings("javadoc")
 public abstract class BaseEventTest extends BaseTest {
@@ -66,10 +67,6 @@ public abstract class BaseEventTest extends BaseTest {
     return new EventsConfigurationBuilder().eventSender(es);
   }
 
-  public static HttpProperties defaultHttpProperties() {
-    return new HttpProperties(0, null, null, null, null, 0, null, null);
-  }
-  
   public DefaultEventProcessor makeEventProcessor(EventsConfigurationBuilder ec) {
     return makeEventProcessor(ec, null);
   }
@@ -92,24 +89,32 @@ public abstract class BaseEventTest extends BaseTest {
 
   public static EventsConfiguration makeEventsConfig(boolean allAttributesPrivate,
       Collection<AttributeRef> privateAttributes) {
-    return new EventsConfiguration(
-        allAttributesPrivate,
-        0,
-        null,
-        100000, // arbitrary long flush interval
-        null,
-        null,
-        null,
-        100000, // arbitrary long flush interval
-        privateAttributes
-        );
+    return new EventsConfigurationBuilder()
+        .allAttributesPrivate(allAttributesPrivate)
+        .privateAttributes(privateAttributes == null ? null : new HashSet<>(privateAttributes))
+        .build();
   }
   
   public static EvaluationDetail<LDValue> simpleEvaluation(int variation, LDValue value) {
     return EvaluationDetail.fromValue(value, variation, EvaluationReason.off());
   }
 
-  public static final class MockEventSender implements EventSender {
+  static final class CapturedPayload {
+    final boolean diagnostic;
+    final String data;
+    final int eventCount;
+    final URI eventsBaseUri;
+    
+    CapturedPayload(boolean diagnostic, String data, int eventCount, URI eventsBaseUri) {
+      this.diagnostic = diagnostic;
+      this.data = data;
+      this.eventCount = eventCount;
+      assertNotNull(eventsBaseUri);
+      this.eventsBaseUri = eventsBaseUri;
+    }
+  }
+
+  public final class MockEventSender implements EventSender {
     volatile boolean closed;
     volatile Result result = new Result(true, false, null);
     volatile RuntimeException fakeError = null;
@@ -117,30 +122,17 @@ public abstract class BaseEventTest extends BaseTest {
     volatile CountDownLatch receivedCounter = null;
     volatile Object waitSignal = null;
     
-    final BlockingQueue<Params> receivedParams = new LinkedBlockingQueue<>();
+    final BlockingQueue<CapturedPayload> receivedParams = new LinkedBlockingQueue<>();
     
-    static final class Params {
-      final boolean diagnostic;
-      final String data;
-      final int eventCount;
-      final URI eventsBaseUri;
-      
-      Params(boolean diagnostic, String data, int eventCount, URI eventsBaseUri) {
-        this.diagnostic = diagnostic;
-        this.data = data;
-        this.eventCount = eventCount;
-        assertNotNull(eventsBaseUri);
-        this.eventsBaseUri = eventsBaseUri;
-      }
-    }
-
     @Override
     public Result sendAnalyticsEvents(byte[] data, int eventCount, URI eventsBaseUri) {
+      testLogger.debug("[MockEventSender] received {} events: {}", eventCount, new String(data));
       return receive(false, data, eventCount, eventsBaseUri);
     }
 
     @Override
     public Result sendDiagnosticEvent(byte[] data, URI eventsBaseUri) {
+      testLogger.debug("[MockEventSender] received diagnostic event: {}", new String(data));
       return receive(true, data, 1, eventsBaseUri);
     }
     
@@ -153,7 +145,7 @@ public abstract class BaseEventTest extends BaseTest {
     }
 
     private Result receive(boolean diagnostic, byte[] data, int eventCount, URI eventsBaseUri) {
-      receivedParams.add(new Params(diagnostic, new String(data, Charset.forName("UTF-8")), eventCount, eventsBaseUri));
+      receivedParams.add(new CapturedPayload(diagnostic, new String(data, Charset.forName("UTF-8")), eventCount, eventsBaseUri));
       if (waitSignal != null) {
         // this is used in DefaultEventProcessorTest.eventsAreKeptInBufferIfAllFlushWorkersAreBusy 
         synchronized (waitSignal) {
@@ -171,8 +163,20 @@ public abstract class BaseEventTest extends BaseTest {
       return result;
     }
     
-    Params awaitRequest() {
+    CapturedPayload awaitRequest() {
       return awaitValue(receivedParams, 5, TimeUnit.SECONDS);
+    }
+
+    CapturedPayload awaitAnalytics() {
+      CapturedPayload p = awaitValue(receivedParams, 5, TimeUnit.SECONDS);
+      assertFalse("expected analytics event but got diagnostic event instead", p.diagnostic);
+      return p;
+    }
+    
+    CapturedPayload awaitDiagnostic() {
+      CapturedPayload p = awaitValue(receivedParams, 5, TimeUnit.SECONDS);
+      assertTrue("expected a diagnostic event but got analytics events instead", p.diagnostic);
+      return p;
     }
     
     void expectNoRequests(long timeoutMillis) {
@@ -180,7 +184,7 @@ public abstract class BaseEventTest extends BaseTest {
     }
     
     List<JsonTestValue> getEventsFromLastRequest() {
-      Params p = awaitRequest();
+      CapturedPayload p = awaitRequest();
       LDValue a = LDValue.parse(p.data);
       assertEquals(p.eventCount, a.size());
       List<JsonTestValue> ret = new ArrayList<>();
@@ -323,10 +327,13 @@ public abstract class BaseEventTest extends BaseTest {
     private EventContextDeduplicator contextDeduplicator = null;
     private long diagnosticRecordingIntervalMillis = 1000000;
     private DiagnosticStore diagnosticStore = null;
+    private EventSender eventSender = null;
+    private int eventSendingThreadPoolSize = EventsConfiguration.DEFAULT_EVENT_SENDING_THREAD_POOL_SIZE;
     private URI eventsUri = URI.create("not-valid");
     private long flushIntervalMillis = 1000000;
+    private boolean initiallyInBackground = false;
+    private boolean initiallyOffline = false;
     private Set<AttributeRef> privateAttributes = new HashSet<>();
-    private EventSender eventSender = null;
 
     public EventsConfiguration build() {
       return new EventsConfiguration(
@@ -336,8 +343,11 @@ public abstract class BaseEventTest extends BaseTest {
           diagnosticRecordingIntervalMillis,
           diagnosticStore,
           eventSender,
+          eventSendingThreadPoolSize,
           eventsUri,
           flushIntervalMillis,
+          initiallyInBackground,
+          initiallyOffline,
           privateAttributes
           );
     }
@@ -351,7 +361,7 @@ public abstract class BaseEventTest extends BaseTest {
       this.capacity = capacity;
       return this;
     }
-    
+
     public EventsConfigurationBuilder contextDeduplicator(EventContextDeduplicator contextDeduplicator) {
       this.contextDeduplicator = contextDeduplicator;
       return this;
@@ -367,6 +377,16 @@ public abstract class BaseEventTest extends BaseTest {
       return this;
     }
     
+    public EventsConfigurationBuilder eventSender(EventSender eventSender) {
+      this.eventSender = eventSender;
+      return this;
+    }
+    
+    public EventsConfigurationBuilder eventSendingThreadPoolSize(int eventSendingThreadPoolSize) {
+      this.eventSendingThreadPoolSize = eventSendingThreadPoolSize;
+      return this;
+    }
+    
     public EventsConfigurationBuilder eventsUri(URI eventsUri) {
       this.eventsUri = eventsUri;
       return this;
@@ -376,14 +396,19 @@ public abstract class BaseEventTest extends BaseTest {
       this.flushIntervalMillis = flushIntervalMillis;
       return this;
     }
-    
-    public EventsConfigurationBuilder privateAttributes(Set<AttributeRef> privateAttributes) {
-      this.privateAttributes = privateAttributes;
+
+    public EventsConfigurationBuilder initiallyInBackground(boolean initiallyInBackground) {
+      this.initiallyInBackground = initiallyInBackground;
+      return this;
+    }
+
+    public EventsConfigurationBuilder initiallyOffline(boolean initiallyOffline) {
+      this.initiallyOffline = initiallyOffline;
       return this;
     }
     
-    public EventsConfigurationBuilder eventSender(EventSender eventSender) {
-      this.eventSender = eventSender;
+    public EventsConfigurationBuilder privateAttributes(Set<AttributeRef> privateAttributes) {
+      this.privateAttributes = privateAttributes;
       return this;
     }
   }

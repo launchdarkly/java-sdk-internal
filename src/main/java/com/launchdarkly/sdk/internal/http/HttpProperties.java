@@ -28,9 +28,11 @@ public final class HttpProperties {
   
   private final long connectTimeoutMillis;
   private final Map<String, String> defaultHeaders;
+  private final HeadersTransformer headersTransformer;
   private final Proxy proxy;
   private final Authenticator proxyAuth;
-  private final SocketFactory socketFactory;
+  private final OkHttpClient sharedHttpClient;
+   private final SocketFactory socketFactory;
   private final long socketTimeoutMillis;
   private final SSLSocketFactory sslSocketFactory;
   private final X509TrustManager trustManager;
@@ -40,6 +42,7 @@ public final class HttpProperties {
    * 
    * @param connectTimeoutMillis connection timeout milliseconds
    * @param defaultHeaders headers to add to all requests
+   * @param headersTransformer optional callback to modify headers
    * @param proxy optional proxy
    * @param proxyAuth optional proxy authenticator
    * @param socketFactory optional socket factory
@@ -47,18 +50,53 @@ public final class HttpProperties {
    * @param sslSocketFactory optional SSL socket factory
    * @param trustManager optional SSL trust manager
    */
-  public HttpProperties(long connectTimeoutMillis, Map<String, String> defaultHeaders, Proxy proxy,
-      Authenticator proxyAuth, SocketFactory socketFactory, long socketTimeoutMillis, SSLSocketFactory sslSocketFactory,
-      X509TrustManager trustManager) {
+  public HttpProperties(
+      long connectTimeoutMillis,
+      Map<String, String> defaultHeaders,
+      HeadersTransformer headersTransformer,
+      Proxy proxy,
+      Authenticator proxyAuth,
+      SocketFactory socketFactory,
+      long socketTimeoutMillis,
+      SSLSocketFactory sslSocketFactory,
+      X509TrustManager trustManager
+      ) {
     super();
     this.connectTimeoutMillis = connectTimeoutMillis <= 0 ? DEFAULT_TIMEOUT : connectTimeoutMillis;
     this.defaultHeaders = defaultHeaders == null ? Collections.emptyMap() : new HashMap<>(defaultHeaders);
+    this.headersTransformer = headersTransformer;
     this.proxy = proxy;
     this.proxyAuth = proxyAuth;
+    this.sharedHttpClient = null;
     this.socketFactory = socketFactory;
     this.socketTimeoutMillis = socketTimeoutMillis <= 0 ? DEFAULT_TIMEOUT : socketTimeoutMillis;
     this.sslSocketFactory = sslSocketFactory;
     this.trustManager = trustManager;
+  }
+
+  /**
+   * Constructs an instance with a preconfigured shared HTTP client.
+   * 
+   * @param sharedHttpClient an existing HTTP client instance
+   * @param defaultHeaders headers to add to all requests
+   * @param headersTransformer optional callback to modify headers
+   */
+  public HttpProperties(
+      OkHttpClient sharedHttpClient,
+      Map<String, String> defaultHeaders,
+      HeadersTransformer headersTransformer
+      ) {
+    super();
+    this.defaultHeaders = defaultHeaders == null ? Collections.emptyMap() : new HashMap<>(defaultHeaders);
+    this.headersTransformer = headersTransformer;
+    this.sharedHttpClient = sharedHttpClient;
+    this.connectTimeoutMillis = DEFAULT_TIMEOUT;
+    this.proxy = null;
+    this.proxyAuth = null;
+    this.socketFactory = null;
+    this.socketTimeoutMillis = DEFAULT_TIMEOUT;
+    this.sslSocketFactory = null;
+    this.trustManager = null;
   }
   
   /**
@@ -67,20 +105,67 @@ public final class HttpProperties {
    * @return a default instance
    */
   public static HttpProperties defaults() {
-    return new HttpProperties(0, null, null, null, null, 0, null, null);
+    return new HttpProperties(0, null, null, null, null, null, 0, null, null);
   }
   
   /**
-   * Returns an immutable view of the default headers.
+   * Returns an immutable view of the default headers. This does not include applying
+   * the configured {@link HeadersTransformer}, if any.
    * 
    * @return the default headers
+   * @see #toHeadersBuilder()
    */
   public Iterable<Map.Entry<String, String>> getDefaultHeaders() {
     return defaultHeaders.entrySet();
   }
 
   /**
+   * Returns an immutable view of the headers to add to a request. This includes applying
+   * the configured {@link HeadersTransformer}, if any.
+   * 
+   * @return the default headers
+   * @see #toHeadersBuilder()
+   */
+  public Iterable<Map.Entry<String, String>> getTransformedDefaultHeaders() {
+    if (headersTransformer == null) {
+      return defaultHeaders.entrySet();
+    }
+    Map<String, String> ret = new HashMap<>(defaultHeaders);
+    headersTransformer.updateHeaders(ret);
+    return ret.entrySet();
+  }
+
+  /**
+   * Returns the callback for transforming headers, if any.
+   * 
+   * @return a {@link HeadersTransformer} or null
+   * @see #toHeadersBuilder()
+   */
+  public HeadersTransformer getHeadersTransformer() {
+    return headersTransformer;
+  }
+  
+  /**
+   * Returns a preconfigured shared HTTP client, if one was defined.
+   * <p>
+   * SDK components that use {@link HttpProperties} should check this method first before
+   * attempting to build their own client. If it returns a non-null value, they should use
+   * that client; in that case, no other properties except the default headers are relevant,
+   * and they should not take ownership of the client (that is, do not close the client when
+   * the component is closed).
+   * 
+   * @return an HTTP client or null
+   */
+  public OkHttpClient getSharedHttpClient() {
+    return sharedHttpClient;
+  }
+  
+  /**
    * Applies the configured properties to an OkHttp client builder.
+   * <p>
+   * SDK components that use {@link HttpProperties} should check {@link #getSharedHttpClient()}
+   * first before attempting to build their own client. The {@link #applyToHttpClientBuilder(okhttp3.OkHttpClient.Builder)}
+   * method will not provide a correct configuration if a shared client was specified.
    * 
    * @param builder the client builder
    */
@@ -113,6 +198,10 @@ public final class HttpProperties {
   
   /**
    * Returns an OkHttp client builder initialized with the configured properties.
+   * <p>
+   * SDK components that use {@link HttpProperties} should check {@link #getSharedHttpClient()}
+   * first before attempting to build their own client. The {@link #toHttpClientBuilder()} method
+   * will not provide a correct configuration if a shared client was specified.
    * 
    * @return a client builder
    */
@@ -123,13 +212,14 @@ public final class HttpProperties {
   }
   
   /**
-   * Returns an OkHttp Headers builder initialized with the default headers.
+   * Returns an OkHttp Headers builder initialized with the default headers. This includes
+   * calling the configured {@link HeadersTransformer}, if any.
    * 
    * @return a Headers builder
    */
   public Headers.Builder toHeadersBuilder() {
     Headers.Builder builder = new Headers.Builder();
-    for (Map.Entry<String, String> kv: getDefaultHeaders()) {
+    for (Map.Entry<String, String> kv: getTransformedDefaultHeaders()) {
       builder.add(kv.getKey(), kv.getValue());
     }
     return builder;

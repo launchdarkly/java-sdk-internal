@@ -30,9 +30,23 @@ import okhttp3.Response;
  * interface for the sake of testability.
  */
 public final class DefaultEventSender implements EventSender {
-  static final long DEFAULT_RETRY_DELAY_MILLIS = 1000;
-  private static final String ANALYTICS_EVENTS_POST_REQUEST_PATH = "/bulk";
-  private static final String DIAGNOSTIC_EVENTS_POST_REQUEST_PATH = "/diagnostic";
+  /**
+   * Default value for {@code retryDelayMillis} parameter.
+   */
+  public static final long DEFAULT_RETRY_DELAY_MILLIS = 1000;
+  
+  /**
+   * Default value for {@code analyticsRequestPath} parameter, for the server-side SDK.
+   * The Android SDK should modify this value.
+   */
+  public static final String DEFAULT_ANALYTICS_REQUEST_PATH = "/bulk";
+
+  /**
+   * Default value for {@code diagnosticRequestPath} parameter, for the server-side SDK.
+   * The Android SDK should modify this value.
+   */
+  public static final String DEFAULT_DIAGNOSTIC_REQUEST_PATH = "/diagnostic";
+  
   private static final String EVENT_SCHEMA_HEADER = "X-LaunchDarkly-Event-Schema";
   private static final String EVENT_SCHEMA_VERSION = "4";
   private static final String EVENT_PAYLOAD_ID_HEADER = "X-LaunchDarkly-Payload-ID";
@@ -42,7 +56,10 @@ public final class DefaultEventSender implements EventSender {
   private static final Object HTTP_DATE_FORMAT_LOCK = new Object(); // synchronize on this because DateFormat isn't thread-safe
 
   private final OkHttpClient httpClient;
+  private final boolean shouldCloseHttpClient;
   private final Headers baseHeaders;
+  private final String analyticsRequestPath;
+  private final String diagnosticRequestPath;
   final long retryDelayMillis; // visible for testing
   private final LDLogger logger;
 
@@ -50,27 +67,42 @@ public final class DefaultEventSender implements EventSender {
    * Creates an instance.
    * 
    * @param httpProperties the HTTP configuration
+   * @param analyticsRequestPath the request path for posting analytics events
+   * @param diagnosticRequestPath the request path for posting diagnostic events
    * @param retryDelayMillis retry delay, or zero to use the default
    * @param logger the logger
    */
   public DefaultEventSender(
       HttpProperties httpProperties,
+      String analyticsRequestPath,
+      String diagnosticRequestPath,
       long retryDelayMillis,
       LDLogger logger
       ) {
-    this.httpClient = httpProperties.toHttpClientBuilder().build();
+    if (httpProperties.getSharedHttpClient() == null) {
+      this.httpClient = httpProperties.toHttpClientBuilder().build();
+      shouldCloseHttpClient = true;
+    } else {
+      this.httpClient = httpProperties.getSharedHttpClient();
+      shouldCloseHttpClient = false;
+    }
     this.logger = logger;
 
     this.baseHeaders = httpProperties.toHeadersBuilder()
         .add("Content-Type", "application/json")
         .build();
     
+    this.analyticsRequestPath = analyticsRequestPath == null ? DEFAULT_ANALYTICS_REQUEST_PATH : analyticsRequestPath;
+    this.diagnosticRequestPath = diagnosticRequestPath == null ? DEFAULT_DIAGNOSTIC_REQUEST_PATH : diagnosticRequestPath;
+    
     this.retryDelayMillis = retryDelayMillis <= 0 ? DEFAULT_RETRY_DELAY_MILLIS : retryDelayMillis;
   }
   
   @Override
   public void close() throws IOException {
-    HttpProperties.shutdownHttpClient(httpClient);
+    if (shouldCloseHttpClient) {
+      HttpProperties.shutdownHttpClient(httpClient);
+    }
   }
   
   @Override
@@ -94,10 +126,10 @@ public final class DefaultEventSender implements EventSender {
     String description;
     
     if (isDiagnostic) {
-      path = DIAGNOSTIC_EVENTS_POST_REQUEST_PATH;
+      path = diagnosticRequestPath;
       description = "diagnostic event";    
     } else {
-      path = ANALYTICS_EVENTS_POST_REQUEST_PATH;
+      path = analyticsRequestPath;
       String eventPayloadId = UUID.randomUUID().toString();
       headersBuilder.add(EVENT_PAYLOAD_ID_HEADER, eventPayloadId);
       headersBuilder.add(EVENT_SCHEMA_HEADER, EVENT_SCHEMA_VERSION);

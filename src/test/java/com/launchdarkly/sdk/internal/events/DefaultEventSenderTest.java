@@ -1,5 +1,6 @@
 package com.launchdarkly.sdk.internal.events;
 
+import com.launchdarkly.sdk.internal.http.HeadersTransformer;
 import com.launchdarkly.sdk.internal.http.HttpProperties;
 import com.launchdarkly.testhelpers.httptest.Handler;
 import com.launchdarkly.testhelpers.httptest.Handlers;
@@ -46,11 +47,11 @@ public class DefaultEventSenderTest extends BaseEventTest {
   }
   
   private EventSender makeEventSender() {
-    return makeEventSender(defaultHttpProperties());
+    return makeEventSender(HttpProperties.defaults());
   }
 
   private EventSender makeEventSender(HttpProperties httpProperties) {
-    return new DefaultEventSender(httpProperties, BRIEF_RETRY_DELAY_MILLIS, testLogger);
+    return new DefaultEventSender(httpProperties, null, null, BRIEF_RETRY_DELAY_MILLIS, testLogger);
   }
   
   @Test
@@ -64,7 +65,7 @@ public class DefaultEventSenderTest extends BaseEventTest {
       }
       
       RequestInfo req = server.getRecorder().requireRequest();   
-      assertEquals("/bulk", req.getPath());
+      assertEquals(DefaultEventSender.DEFAULT_ANALYTICS_REQUEST_PATH, req.getPath());
       assertThat(req.getHeader("content-type"), equalToIgnoringCase("application/json; charset=utf-8"));
       assertEquals(FAKE_DATA, req.getBody());
     }
@@ -81,9 +82,27 @@ public class DefaultEventSenderTest extends BaseEventTest {
       }
       
       RequestInfo req = server.getRecorder().requireRequest();      
-      assertEquals("/diagnostic", req.getPath());
+      assertEquals(DefaultEventSender.DEFAULT_DIAGNOSTIC_REQUEST_PATH, req.getPath());
       assertThat(req.getHeader("content-type"), equalToIgnoringCase("application/json; charset=utf-8"));
       assertEquals(FAKE_DATA, req.getBody());
+    }
+  }
+
+  @Test
+  public void customRequestPaths() throws Exception {
+    try (HttpServer server = HttpServer.start(eventsSuccessResponse())) {
+      try (EventSender es = new DefaultEventSender(HttpProperties.defaults(),
+          "/custom/path/a", "/custom/path/d", BRIEF_RETRY_DELAY_MILLIS, testLogger)) {
+        EventSender.Result result = es.sendAnalyticsEvents(FAKE_DATA_BYTES, 1, server.getUri());
+        assertTrue(result.isSuccess());
+        result = es.sendDiagnosticEvent(FAKE_DATA_BYTES, server.getUri());
+        assertTrue(result.isSuccess());
+      }
+      
+      RequestInfo req1 = server.getRecorder().requireRequest();   
+      assertEquals("/custom/path/a", req1.getPath());
+      RequestInfo req2 = server.getRecorder().requireRequest();   
+      assertEquals("/custom/path/d", req2.getPath());
     }
   }
 
@@ -92,7 +111,7 @@ public class DefaultEventSenderTest extends BaseEventTest {
     Map<String, String> headers = new HashMap<>();
     headers.put("name1", "value1");
     headers.put("name2", "value2");
-    HttpProperties httpProperties = new HttpProperties(0, headers, null, null, null, 0, null, null);
+    HttpProperties httpProperties = new HttpProperties(0, headers, null, null, null, null, 0, null, null);
     
     try (HttpServer server = HttpServer.start(eventsSuccessResponse())) {
       try (EventSender es = makeEventSender(httpProperties)) {
@@ -111,7 +130,7 @@ public class DefaultEventSenderTest extends BaseEventTest {
     Map<String, String> headers = new HashMap<>();
     headers.put("name1", "value1");
     headers.put("name2", "value2");
-    HttpProperties httpProperties = new HttpProperties(0, headers, null, null, null, 0, null, null);
+    HttpProperties httpProperties = new HttpProperties(0, headers, null, null, null, null, 0, null, null);
     
     try (HttpServer server = HttpServer.start(eventsSuccessResponse())) {
       try (EventSender es = makeEventSender(httpProperties)) {
@@ -122,6 +141,30 @@ public class DefaultEventSenderTest extends BaseEventTest {
       for (Map.Entry<String, String> kv: headers.entrySet()) {
         assertThat(req.getHeader(kv.getKey()), equalTo(kv.getValue()));
       }
+    }
+  }
+
+  @Test
+  public void headersTransformerIsApplied() throws Exception {
+    Map<String, String> headers = new HashMap<>();
+    headers.put("name1", "value1");
+    headers.put("name2", "value2");
+    HeadersTransformer headersTransformer = new HeadersTransformer() {
+      @Override
+      public void updateHeaders(Map<String, String> h) {
+        h.put("name1", h.get("name1") + "a");
+      }
+    };
+    HttpProperties httpProperties = new HttpProperties(0, headers, headersTransformer, null, null, null, 0, null, null);
+    
+    try (HttpServer server = HttpServer.start(eventsSuccessResponse())) {
+      try (EventSender es = makeEventSender(httpProperties)) {
+        es.sendAnalyticsEvents(FAKE_DATA_BYTES, 1, server.getUri());
+      }
+      
+      RequestInfo req = server.getRecorder().requireRequest();
+      assertThat(req.getHeader("name1"), equalTo("value1a"));
+      assertThat(req.getHeader("name2"), equalTo("value2"));
     }
   }
 

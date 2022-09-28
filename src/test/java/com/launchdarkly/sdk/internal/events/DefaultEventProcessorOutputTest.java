@@ -213,8 +213,8 @@ public class DefaultEventProcessorOutputTest extends BaseEventTest {
     try (DefaultEventProcessor ep = makeEventProcessor(baseConfig(es))) {
       // Send and flush an event we don't care about, just so we'll receive "resp1" which sets the last server time
       ep.sendEvent(identifyEvent(LDContext.create("otherUser")));
-      ep.flush();
-      ep.waitUntilInactive(); // this ensures that it has received the first response, with the date
+      ep.flushBlocking(); // wait till flush is done so we know we received the first response, with the date
+      es.awaitRequest();
       
       es.receivedParams.clear();
       es.result = new EventSender.Result(true, false, null);
@@ -244,8 +244,8 @@ public class DefaultEventProcessorOutputTest extends BaseEventTest {
     try (DefaultEventProcessor ep = makeEventProcessor(baseConfig(es))) {
       // Send and flush an event we don't care about, just to set the last server time
       ep.sendEvent(identifyEvent(LDContext.create("otherUser")));
-      ep.flush();
-      ep.waitUntilInactive(); // this ensures that it has received the first response, with the date
+      ep.flushBlocking(); // wait till flush is done so we know we received the first response, with the date
+      es.awaitRequest();
       
       es.receivedParams.clear();
       es.result = new EventSender.Result(true, false, null);
