@@ -131,7 +131,7 @@ class EventContextFormatter {
     
     // If privateRef is non-null, then it is either an exact match for the property we're looking at,
     // or it refers to a subproperty of it (for instance, if we are redacting property "b" within
-    // attriute "a", it could be /a/b [depth 2] or /a/b/c [depth 3]). If the depth shows that it's an
+    // attribute "a", it could be /a/b [depth 2] or /a/b/c [depth 3]). If the depth shows that it's an
     // exact match, this whole value is redacted and we don't bother recursing.
     if (privateRef != null && privateRef.getDepth() == depth) {
       return addOrCreate(redacted, privateRef.toString());
