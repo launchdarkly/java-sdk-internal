@@ -9,6 +9,7 @@ import org.junit.Test;
 import java.util.Arrays;
 import java.util.List;
 
+import static com.launchdarkly.testhelpers.JsonAssertions.isJsonArray;
 import static com.launchdarkly.testhelpers.JsonAssertions.jsonEqualsValue;
 import static com.launchdarkly.testhelpers.JsonAssertions.jsonProperty;
 import static com.launchdarkly.testhelpers.JsonAssertions.jsonUndefined;
@@ -16,12 +17,13 @@ import static com.launchdarkly.testhelpers.JsonTestValue.jsonFromValue;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.junit.Assert.assertEquals;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertSame;
 
 @SuppressWarnings("javadoc")
 public class DiagnosticStoreTest extends BaseTest {
@@ -34,24 +36,24 @@ public class DiagnosticStoreTest extends BaseTest {
   public void initEventBasicProperties() {
     long now = System.currentTimeMillis();
     DiagnosticStore store = makeSimpleStore();
-    DiagnosticEvent.Init ie = store.getInitEvent();
-    assertThat(ie.kind, equalTo("diagnostic-init"));
-    assertThat(ie.creationDate, greaterThanOrEqualTo(now));
-    assertThat(ie.id, notNullValue());
-    assertThat(ie.id.diagnosticId, notNullValue());
-    assertThat(ie.id.sdkKeySuffix, equalTo("bcdefg"));
+    DiagnosticEvent ie = store.getInitEvent();
+    assertThat(ie.initEvent, is(true));
+    assertThat(ie.value.get("creationDate").longValue(), greaterThanOrEqualTo(now));
+    assertThat(ie.value.get("id").get("diagnosticId"), not(equalTo(LDValue.ofNull())));
+    assertThat(ie.value.get("id").get("sdkKeySuffix").stringValue(), equalTo("bcdefg"));
   }
   
   @Test
   public void initEventSdkData() {
     DiagnosticStore store = makeSimpleStore();
-    DiagnosticEvent.Init ie = store.getInitEvent();
-    assertThat(jsonFromValue(ie.sdk), allOf(
-        jsonProperty("name", SDK_NAME),
-        jsonProperty("version", SDK_VERSION),
-        jsonProperty("wrapperName", jsonUndefined()),
-        jsonProperty("wrapperVersion", jsonUndefined())
-        ));
+    DiagnosticEvent ie = store.getInitEvent();
+    assertThat(jsonFromValue(ie.value),
+        jsonProperty("sdk", allOf(
+          jsonProperty("name", SDK_NAME),
+          jsonProperty("version", SDK_VERSION),
+          jsonProperty("wrapperName", jsonUndefined()),
+          jsonProperty("wrapperVersion", jsonUndefined())
+          )));
   }
 
   @Test
@@ -61,13 +63,14 @@ public class DiagnosticStoreTest extends BaseTest {
         singletonMap("X-LaunchDarkly-Wrapper", "Scala"),
         null
         ));
-    DiagnosticEvent.Init ie = store.getInitEvent();
-    assertThat(jsonFromValue(ie.sdk), allOf(
-        jsonProperty("name", SDK_NAME),
-        jsonProperty("version", SDK_VERSION),
-        jsonProperty("wrapperName", "Scala"),
-        jsonProperty("wrapperVersion", jsonUndefined())
-        ));
+    DiagnosticEvent ie = store.getInitEvent();
+    assertThat(jsonFromValue(ie.value),
+        jsonProperty("sdk", allOf(
+          jsonProperty("name", SDK_NAME),
+          jsonProperty("version", SDK_VERSION),
+          jsonProperty("wrapperName", "Scala"),
+          jsonProperty("wrapperVersion", jsonUndefined())
+          )));
   }
 
   @Test
@@ -77,13 +80,14 @@ public class DiagnosticStoreTest extends BaseTest {
         singletonMap("X-LaunchDarkly-Wrapper", "Scala/0.1"),
         null
         ));
-    DiagnosticEvent.Init ie = store.getInitEvent();
-    assertThat(jsonFromValue(ie.sdk), allOf(
-        jsonProperty("name", SDK_NAME),
-        jsonProperty("version", SDK_VERSION),
-        jsonProperty("wrapperName", "Scala"),
-        jsonProperty("wrapperVersion", "0.1")
-        ));
+    DiagnosticEvent ie = store.getInitEvent();
+    assertThat(jsonFromValue(ie.value),
+        jsonProperty("sdk", allOf(
+          jsonProperty("name", SDK_NAME),
+          jsonProperty("version", SDK_VERSION),
+          jsonProperty("wrapperName", "Scala"),
+          jsonProperty("wrapperVersion", "0.1")
+          )));
   }
   
   @Test
@@ -93,12 +97,13 @@ public class DiagnosticStoreTest extends BaseTest {
         LDValue.buildObject().put("prop1", 2).put("prop2", 3).build(),
         null, null
         ));
-    DiagnosticEvent.Init ie = store.getInitEvent();
-    assertThat(jsonFromValue(ie.platform), allOf(
-        jsonProperty("name", PLATFORM_NAME),
-        jsonProperty("prop1", 2),
-        jsonProperty("prop2", 3)
-        ));
+    DiagnosticEvent ie = store.getInitEvent();
+    assertThat(jsonFromValue(ie.value),
+        jsonProperty("platform", allOf(
+          jsonProperty("name", PLATFORM_NAME),
+          jsonProperty("prop1", 2),
+          jsonProperty("prop2", 3)
+          )));
   }
   
   @Test
@@ -117,45 +122,57 @@ public class DiagnosticStoreTest extends BaseTest {
         SDK_KEY, SDK_NAME, SDK_VERSION, PLATFORM_NAME, null, null,
         configValues
         ));
-    DiagnosticEvent.Init ie = store.getInitEvent();
-    assertThat(jsonFromValue(ie.configuration), jsonEqualsValue(
-        LDValue.buildObject()
-          .put(DiagnosticConfigProperty.EVENTS_CAPACITY.name, 1000)
-          .put(DiagnosticConfigProperty.USER_KEYS_CAPACITY.name, 2000)
-          .put(DiagnosticConfigProperty.DATA_STORE_TYPE.name, "custom")
-          .build()
-        ));
+    DiagnosticEvent ie = store.getInitEvent();
+    assertThat(jsonFromValue(ie.value),
+        jsonProperty("configuration", jsonEqualsValue(
+          LDValue.buildObject()
+            .put(DiagnosticConfigProperty.EVENTS_CAPACITY.name, 1000)
+            .put(DiagnosticConfigProperty.USER_KEYS_CAPACITY.name, 2000)
+            .put(DiagnosticConfigProperty.DATA_STORE_TYPE.name, "custom")
+            .build()
+          )));
   }
   
   @Test
   public void createsDiagnosticStatisticsEvent() {
     DiagnosticStore store = makeSimpleStore();
     long startDate = store.getDataSinceDate();
-    DiagnosticEvent.Statistics diagnosticStatisticsEvent = store.createEventAndReset(10, 15);
-    assertSame(store.getDiagnosticId(), diagnosticStatisticsEvent.id);
-    assertEquals(10, diagnosticStatisticsEvent.droppedEvents);
-    assertEquals(15, diagnosticStatisticsEvent.deduplicatedUsers);
-    assertEquals(0, diagnosticStatisticsEvent.eventsInLastBatch);
-    assertEquals(startDate, diagnosticStatisticsEvent.dataSinceDate);
+    DiagnosticEvent statsEvent = store.createEventAndReset(10, 15);
+    
+    assertThat(jsonFromValue(statsEvent.value), allOf(
+        jsonProperty("id", jsonProperty("diagnosticId", store.getDiagnosticId().diagnosticId)),
+        jsonProperty("droppedEvents", 10),
+        jsonProperty("deduplicatedUsers", 15),
+        jsonProperty("eventsInLastBatch", 0),
+        jsonProperty("dataSinceDate", startDate)
+        ));
   }
 
   @Test
   public void canRecordStreamInit() {
     DiagnosticStore store = makeSimpleStore();
     store.recordStreamInit(1000, 200, false);
-    DiagnosticEvent.Statistics statsEvent = store.createEventAndReset(0, 0);
-    assertEquals(1, statsEvent.streamInits.size());
-    assertEquals(1000, statsEvent.streamInits.get(0).timestamp);
-    assertEquals(200, statsEvent.streamInits.get(0).durationMillis);
-    assertEquals(false, statsEvent.streamInits.get(0).failed);
+    DiagnosticEvent statsEvent = store.createEventAndReset(0, 0);
+    
+    assertThat(jsonFromValue(statsEvent.value),
+        jsonProperty("streamInits", isJsonArray(
+            contains(
+                allOf(
+                    jsonProperty("timestamp", 1000),
+                    jsonProperty("durationMillis", 200),
+                    jsonProperty("failed", false)
+                    )
+                )
+            )));
   }
 
   @Test
   public void canRecordEventsInBatch() {
     DiagnosticStore store = makeSimpleStore();
     store.recordEventsInBatch(100);
-    DiagnosticEvent.Statistics statsEvent = store.createEventAndReset(0, 0);
-    assertEquals(100, statsEvent.eventsInLastBatch);
+    DiagnosticEvent statsEvent = store.createEventAndReset(0, 0);
+    assertThat(jsonFromValue(statsEvent.value),
+        jsonProperty("eventsInLastBatch", 100));
   }
 
   @Test
@@ -167,9 +184,11 @@ public class DiagnosticStoreTest extends BaseTest {
     Thread.sleep(2); // so that dataSinceDate will be different
     store.createEventAndReset(0, 0);
     assertNotEquals(startDate, store.getDataSinceDate());
-    DiagnosticEvent.Statistics resetEvent = store.createEventAndReset(0,0);
-    assertEquals(0, resetEvent.streamInits.size());
-    assertEquals(0, resetEvent.eventsInLastBatch);
+    DiagnosticEvent statsEvent = store.createEventAndReset(0, 0);
+    assertThat(jsonFromValue(statsEvent.value), allOf(
+        jsonProperty("eventsInLastBatch", 0),
+        jsonProperty("streamInits", isJsonArray(emptyIterable()))
+        ));
   }
   
   private static DiagnosticStore makeSimpleStore() {

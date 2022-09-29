@@ -99,12 +99,12 @@ public final class DiagnosticStore {
   }
   
   /**
-   * Returns the initial diagnostic event.
+   * Returns the initial diagnostic event as a JSON object.
    * 
    * @return the initial event
    */
-  public DiagnosticEvent.Init getInitEvent() {
-    return new DiagnosticEvent.Init(creationDate, diagnosticId,
+  public DiagnosticEvent getInitEvent() {
+    return DiagnosticEvent.makeInit(creationDate, diagnosticId,
         makeInitEventSdkData(), makeInitEventConfigData(), makeInitEventPlatformData());
   }
 
@@ -190,7 +190,7 @@ public final class DiagnosticStore {
    * @param deduplicatedContexts number of deduplicated contexts
    * @return the event
    */
-  public DiagnosticEvent.Statistics createEventAndReset(long droppedEvents, long deduplicatedContexts) {
+  public DiagnosticEvent createEventAndReset(long droppedEvents, long deduplicatedContexts) {
     long currentTime = System.currentTimeMillis();
     List<DiagnosticEvent.StreamInit> eventInits;
     synchronized (streamInitsLock) {
@@ -198,7 +198,7 @@ public final class DiagnosticStore {
       streamInits = new ArrayList<>();
     }
     long eventsInBatch = eventsInLastBatch.getAndSet(0);
-    DiagnosticEvent.Statistics res = new DiagnosticEvent.Statistics(currentTime, diagnosticId, dataSinceDate, droppedEvents,
+    DiagnosticEvent res = DiagnosticEvent.makeStatistics(currentTime, diagnosticId, dataSinceDate, droppedEvents,
         deduplicatedContexts, eventsInBatch, eventInits);
     dataSinceDate = currentTime;
     return res;
