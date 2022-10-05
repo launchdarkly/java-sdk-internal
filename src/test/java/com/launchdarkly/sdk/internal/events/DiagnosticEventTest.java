@@ -22,10 +22,10 @@ public class DiagnosticEventTest extends BaseTest {
   @Test
   public void testSerialization() {
     DiagnosticId diagnosticId = new DiagnosticId("SDK_KEY");
-    DiagnosticEvent.Statistics diagnosticStatisticsEvent = new DiagnosticEvent.Statistics(2000, diagnosticId, 1000, 1, 2, 3, testStreamInits);
-    JsonObject jsonObject = gsonInstance().toJsonTree(diagnosticStatisticsEvent).getAsJsonObject();
+    DiagnosticEvent diagnosticStatisticsEvent = DiagnosticEvent.makeStatistics(2000, diagnosticId, 1000, 1, 2, 3, testStreamInits);
+    JsonObject jsonObject = gsonInstance().toJsonTree(diagnosticStatisticsEvent.value).getAsJsonObject();
     assertEquals(8, jsonObject.size());
-    assertEquals("diagnostic", diagnosticStatisticsEvent.kind);
+    assertEquals("diagnostic", jsonObject.getAsJsonPrimitive("kind").getAsString());
     assertEquals(2000, jsonObject.getAsJsonPrimitive("creationDate").getAsLong());
     JsonObject idObject = jsonObject.getAsJsonObject("id");
     assertEquals("DK_KEY", idObject.getAsJsonPrimitive("sdkKeySuffix").getAsString());

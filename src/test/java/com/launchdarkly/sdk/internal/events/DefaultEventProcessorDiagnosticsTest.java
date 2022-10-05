@@ -6,10 +6,14 @@ import org.junit.Test;
 
 import java.net.URI;
 
+import static com.launchdarkly.testhelpers.JsonAssertions.jsonNull;
+import static com.launchdarkly.testhelpers.JsonAssertions.jsonProperty;
+import static com.launchdarkly.testhelpers.JsonTestValue.jsonOf;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertEquals;
+import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertNotNull;
 
 /**
@@ -55,18 +59,18 @@ public class DefaultEventProcessorDiagnosticsTest extends BaseEventTest {
     try (DefaultEventProcessor ep = makeEventProcessor(baseConfig(es).diagnosticStore(diagnosticStore))) {
       CapturedPayload req = es.awaitDiagnostic();
 
-      DiagnosticEvent.Init initEvent = gson.fromJson(req.data, DiagnosticEvent.Init.class);
-
-      assertNotNull(initEvent);
-      assertThat(initEvent.kind, equalTo("diagnostic-init"));
-      assertThat(initEvent.id.diagnosticId, equalTo(diagnosticId.diagnosticId));
-      assertThat(initEvent.id.sdkKeySuffix, equalTo(diagnosticId.sdkKeySuffix));
-      assertNotNull(initEvent.configuration);
-      assertNotNull(initEvent.sdk);
-      assertNotNull(initEvent.platform);
+      assertThat(jsonOf(req.data), allOf(
+          jsonProperty("kind", "diagnostic-init"),
+          jsonProperty("id", jsonProperty("diagnosticId", diagnosticId.diagnosticId)),
+          jsonProperty("id", jsonProperty("sdkKeySuffix", diagnosticId.sdkKeySuffix)),
+          jsonProperty("configuration", not(jsonNull())),
+          jsonProperty("sdk", not(jsonNull())),
+          jsonProperty("platform", not(jsonNull()))
+          ));
     }
   }
 
+  @SuppressWarnings("unchecked")
   @Test
   public void periodicDiagnosticEventHasStatisticsBody() throws Exception {
     MockEventSender es = new MockEventSender();
@@ -77,18 +81,16 @@ public class DefaultEventProcessorDiagnosticsTest extends BaseEventTest {
       ep.postDiagnostic();
       CapturedPayload periodicReq = es.awaitDiagnostic();
 
-      assertNotNull(periodicReq);
-      DiagnosticEvent.Statistics statsEvent = gson.fromJson(periodicReq.data, DiagnosticEvent.Statistics.class);
-
-      assertNotNull(statsEvent);
-      assertThat(statsEvent.kind, equalTo("diagnostic"));
-      assertThat(statsEvent.id.diagnosticId, equalTo(diagnosticId.diagnosticId));
-      assertThat(statsEvent.id.sdkKeySuffix, equalTo(diagnosticId.sdkKeySuffix));
-      assertThat(statsEvent.dataSinceDate, equalTo(dataSinceDate));
-      assertThat(statsEvent.creationDate, equalTo(diagnosticStore.getDataSinceDate()));
-      assertThat(statsEvent.deduplicatedUsers, equalTo(0L));
-      assertThat(statsEvent.eventsInLastBatch, equalTo(0L));
-      assertThat(statsEvent.droppedEvents, equalTo(0L));
+      assertThat(jsonOf(periodicReq.data), allOf(
+          jsonProperty("kind", "diagnostic"),
+          jsonProperty("id", jsonProperty("diagnosticId", diagnosticId.diagnosticId)),
+          jsonProperty("id", jsonProperty("sdkKeySuffix", diagnosticId.sdkKeySuffix)),
+          jsonProperty("dataSinceDate", dataSinceDate),
+          jsonProperty("creationDate", diagnosticStore.getDataSinceDate()),
+          jsonProperty("deduplicatedUsers", 0),
+          jsonProperty("eventsInLastBatch", 0),
+          jsonProperty("droppedEvents", 0)
+          ));
     }
   }
 
@@ -116,12 +118,12 @@ public class DefaultEventProcessorDiagnosticsTest extends BaseEventTest {
       CapturedPayload periodicReq = es.awaitRequest();
 
       assertNotNull(periodicReq);
-      DiagnosticEvent.Statistics statsEvent = gson.fromJson(periodicReq.data, DiagnosticEvent.Statistics.class);
 
-      assertNotNull(statsEvent);
-      assertThat(statsEvent.deduplicatedUsers, equalTo(1L));
-      assertThat(statsEvent.eventsInLastBatch, equalTo(2L)); // 1 index event + 1 summary event
-      assertThat(statsEvent.droppedEvents, equalTo(0L));
+      assertThat(jsonOf(periodicReq.data), allOf(
+          jsonProperty("deduplicatedUsers", 1),
+          jsonProperty("eventsInLastBatch", 2), // 1 index event + 1 summary event
+          jsonProperty("droppedEvents", 0)
+          ));
     }
   }
 
@@ -138,8 +140,8 @@ public class DefaultEventProcessorDiagnosticsTest extends BaseEventTest {
       CapturedPayload periodicReq = es.awaitRequest();
 
       assertNotNull(periodicReq);
-      DiagnosticEvent.Statistics statsEvent = gson.fromJson(periodicReq.data, DiagnosticEvent.Statistics.class);
-      assertEquals("diagnostic", statsEvent.kind);
+      
+      assertThat(jsonOf(periodicReq.data), jsonProperty("kind", "diagnostic"));
     }
   }
 

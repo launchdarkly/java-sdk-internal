@@ -630,12 +630,12 @@ public final class DefaultEventProcessor implements Closeable, EventProcessor {
           try {
             ByteArrayOutputStream buffer = new ByteArrayOutputStream(INITIAL_OUTPUT_BUFFER_SIZE);
             Writer writer = new BufferedWriter(new OutputStreamWriter(buffer, Charset.forName("UTF-8")), INITIAL_OUTPUT_BUFFER_SIZE);
-            gson.toJson(diagnosticEvent, writer);
+            gson.toJson(diagnosticEvent.value, writer);
             writer.flush();
             EventSender.Result result = eventsConfig.eventSender.sendDiagnosticEvent(
                 buffer.toByteArray(), eventsConfig.eventsUri);
             handleResponse(result);
-            if (diagnosticEvent instanceof DiagnosticEvent.Init) {
+            if (diagnosticEvent.initEvent) {
               didSendInitEvent.set(true);
             }
           } catch (Exception e) {
