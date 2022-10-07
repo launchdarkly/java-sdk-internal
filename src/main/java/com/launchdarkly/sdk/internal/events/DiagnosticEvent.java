@@ -18,6 +18,14 @@ public class DiagnosticEvent {
     this.value = value;
   }
   
+  /**
+   * Returns the JSON representation of the event.
+   * @return the JSON representation as an {@link LDValue}
+   */
+  public LDValue getJsonValue() {
+    return value;
+  }
+  
   static DiagnosticEvent makeInit(
       long creationDate,
       DiagnosticId diagnosticId,
