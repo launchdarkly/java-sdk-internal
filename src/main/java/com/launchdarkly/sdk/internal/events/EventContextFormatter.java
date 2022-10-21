@@ -72,20 +72,14 @@ class EventContextFormatter {
       redacted = writeOrRedactAttribute(w, c, attrName, c.getValue(attrName), redacted);
     }
     
-    boolean haveRedacted = redacted != null && !redacted.isEmpty(),
-        haveSecondary = c.getSecondary() != null;
-    if (haveRedacted || haveSecondary) {
+    boolean haveRedacted = redacted != null && !redacted.isEmpty();
+    if (haveRedacted) {
       w.name("_meta").beginObject();
-      if (haveRedacted) {
-        w.name("redactedAttributes").beginArray();
-        for (String a: redacted) {
-          w.value(a);
-        }
-        w.endArray();
+      w.name("redactedAttributes").beginArray();
+      for (String a: redacted) {
+        w.value(a);
       }
-      if (haveSecondary) {
-        w.name("secondary").value(c.getSecondary());
-      }
+      w.endArray();
       w.endObject();
     }
     

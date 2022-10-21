@@ -30,7 +30,6 @@ public class EventOutputTest extends BaseEventTest {
   private ContextBuilder contextBuilderWithAllAttributes = LDContext.builder("userkey")
       .anonymous(true)
       .name("me")
-      .secondary("s")
       .set("custom1", "value1")
       .set("custom2", "value2");
   private static final LDValue contextJsonWithAllAttributes = parseValue("{" +
@@ -39,8 +38,7 @@ public class EventOutputTest extends BaseEventTest {
       "\"anonymous\":true," +
       "\"custom1\":\"value1\"," +
       "\"custom2\":\"value2\"," +
-      "\"name\":\"me\"," +
-      "\"_meta\":{\"secondary\":\"s\"}" +
+      "\"name\":\"me\"" +
       "}");
   
   @Test

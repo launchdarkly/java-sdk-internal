@@ -83,13 +83,6 @@ public class EventContextFormatterTest extends BaseTest {
             "{\"kind\": \"org\", \"key\": \"my-key\", \"anonymous\": true}"
         },
         new Object[] {
-            "secondary",
-            LDContext.builder("my-key").kind("org").secondary("x").build(),
-            false,
-            new AttributeRef[0],
-            "{\"kind\": \"org\", \"key\": \"my-key\", \"_meta\": {\"secondary\": \"x\"}}"
-        },
-        new Object[] {
             "all attributes private globally",
             LDContext.builder("my-key").kind("org")
               .name("my-name")
