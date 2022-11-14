@@ -27,7 +27,15 @@ public enum DiagnosticConfigProperty {
   USER_KEYS_FLUSH_INTERVAL_MILLIS("userKeysFlushIntervalMillis", LDValueType.NUMBER),
   USING_PROXY("usingProxy", LDValueType.BOOLEAN),
   USING_PROXY_AUTHENTICATOR("usingProxyAuthenticator", LDValueType.BOOLEAN),
-  USING_RELAY_DAEMON("usingRelayDaemon", LDValueType.BOOLEAN);
+  USING_RELAY_DAEMON("usingRelayDaemon", LDValueType.BOOLEAN),
+  
+  // the following properties are used only in Android
+  BACKGROUND_POLLING_INTERVAL_MILLIS("backgroundPollingIntervalMillis", LDValueType.NUMBER),
+  BACKGROUND_POLLING_DISABLED("backgroundPollingDisabled", LDValueType.BOOLEAN),
+  EVALUATION_REASONS_REQUESTED("evaluationReasonsRequested", LDValueType.BOOLEAN),
+  MAX_CACHED_USERS("maxCachedUsers", LDValueType.NUMBER),
+  MOBILE_KEY_COUNT("mobileKeyCount", LDValueType.NUMBER),
+  USE_REPORT("useReport", LDValueType.BOOLEAN);
 
   public final String name;
   public final LDValueType type;
