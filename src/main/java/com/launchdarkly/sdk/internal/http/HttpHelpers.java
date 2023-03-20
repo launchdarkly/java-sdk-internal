@@ -46,7 +46,7 @@ public abstract class HttpHelpers {
    */
   public static URI addQueryParam(URI uri, String name, String value) {
     // it is important to use get(String) instead of get(URI) because get(String) will throw an exception
-    // that includes useful information for the user to diagnose their URI.j
+    // that includes useful information for the user to diagnose their URI.
     return HttpUrl.get(uri.toString()).newBuilder().addQueryParameter(name, value).build().uri();
 }
 

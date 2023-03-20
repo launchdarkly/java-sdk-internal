@@ -37,6 +37,8 @@ public class HttpHelpersAddQueryParamToUriTest extends BaseTest {
                 { URI.create("http://1.1.1.1/?withReasons=true"), "filter", "myFilter", URI.create("http://1.1.1.1/?withReasons=true&filter=myFilter") },
                 // order affects result (just including this for determinism, not a spec point)
                 { URI.create("http://1.1.1.1/?filter=myFilter"), "withReasons", "true", URI.create("http://1.1.1.1/?filter=myFilter&withReasons=true") },
+                // existing path
+                { URI.create("http://1.1.1.1/a/path"), "filter", "myFilter", URI.create("http://1.1.1.1/a/path?filter=myFilter") },
 
                 // below are weird cases that we aren't expecting to encounter, just including for documentation of behavior
                 // adding param again
