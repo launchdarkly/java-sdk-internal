@@ -28,7 +28,7 @@ object Libs {
     val javaTestImplementation = listOf(
         "junit:junit:4.12",
         "org.hamcrest:hamcrest-library:1.3",
-        "com.google.guava:guava:30.1-jre"
+        "com.google.guava:guava:32.0.1-jre"
         
         // "com.launchdarkly:test-helpers:${Versions.testHelpers}"
         // test-helpers is special-cased in build.gradle.kts and build-android.gradle
