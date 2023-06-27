@@ -2,6 +2,10 @@
 
 All notable changes to the project will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [1.1.1] - 2023-06-27
+### Changed:
+- Bumping Guava version to incorporate CVE fixes.
+
 ## [1.1.0] - 2023-03-21
 ### Added:
 - Additional query param related functionality to HttpHelpers
