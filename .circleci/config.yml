@@ -118,12 +118,14 @@ jobs:
           command: choco uninstall -y openjdk
       - run:
           name: install OpenJDK
-          command: choco install openjdk --version <<parameters.openjdk-version>>
+          command: choco install openjdk --version <<parameters.openjdk-version>> -y
       - attach_workspace:
           at: build
       - run:
           name: run tests
           command: |
+            Import-Module $env:ChocolateyInstall\helpers\chocolateyProfile.psm1
+            refreshenv
             .\gradlew.bat --no-daemon test  # must use --no-daemon because CircleCI in Windows will hang if there's a daemon running
       - run:
           name: save test results
