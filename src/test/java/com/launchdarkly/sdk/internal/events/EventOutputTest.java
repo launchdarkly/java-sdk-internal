@@ -24,13 +24,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.junit.Assert.assertEquals;
 
 @SuppressWarnings("javadoc")
-public class
-
-
-
-
-
-EventOutputTest extends BaseEventTest {
+public class EventOutputTest extends BaseEventTest {
   private static final Gson gson = new Gson();
   
   private final ContextBuilder contextBuilderWithAllAttributes = LDContext.builder("userkey")
