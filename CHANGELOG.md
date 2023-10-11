@@ -2,6 +2,11 @@
 
 All notable changes to the project will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [1.2.0] - 2023-10-11
+### Added:
+- Added support for the migration operation event.
+- Added support for event sampling for feature events and migration operation events.
+
 ## [1.1.1] - 2023-06-27
 ### Changed:
 - Bumping Guava version to incorporate CVE fixes.
