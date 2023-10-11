@@ -518,6 +518,16 @@ public final class DefaultEventProcessor implements Closeable, EventProcessor {
         return;
       }
 
+      // For migration events we process them and exit early. They cannot generate additional event types or be
+      // summarized.
+      if(e instanceof Event.MigrationOp) {
+        Event.MigrationOp me = (Event.MigrationOp)e;
+        if (Sampler.shouldSample(me.getSamplingRatio())) {
+          outbox.add(e);
+        }
+        return;
+      }
+
       LDContext context = e.getContext();
       if (context == null) {
         return; // LDClient should never give us an event with no context
@@ -531,7 +541,9 @@ public final class DefaultEventProcessor implements Closeable, EventProcessor {
 
       if (e instanceof Event.FeatureRequest) {
         Event.FeatureRequest fe = (Event.FeatureRequest)e;
-        outbox.addToSummary(fe);
+        if(!fe.isExcludeFromSummaries()) {
+          outbox.addToSummary(fe);
+        }
         addFullEvent = fe.isTrackEvents();
         if (shouldDebugEvent(fe)) {
           debugEvent = fe.toDebugEvent();
@@ -562,10 +574,10 @@ public final class DefaultEventProcessor implements Closeable, EventProcessor {
         Event.Index ie = new Event.Index(e.getCreationDate(), e.getContext());
         outbox.add(ie);
       }
-      if (addFullEvent) {
+      if (addFullEvent && Sampler.shouldSample(e.getSamplingRatio())) {
         outbox.add(e);
       }
-      if (debugEvent != null) {
+      if (debugEvent != null && Sampler.shouldSample(e.getSamplingRatio())) {
         outbox.add(debugEvent);
       }
     }

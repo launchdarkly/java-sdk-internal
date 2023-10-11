@@ -19,7 +19,7 @@ import static com.launchdarkly.sdk.internal.GsonHelpers.gsonInstance;
  * Transforms analytics events and summary data into the JSON format that we send to LaunchDarkly.
  * Rather than creating intermediate objects to represent this schema, we use the Gson streaming
  * output API to construct JSON directly.
- * 
+ * <p>
  * Test coverage for this logic is in EventOutputTest and DefaultEventProcessorOutputTest. The
  * handling of context data and private attribute redaction is implemented in EventContextFormatter
  * and tested in more detail in EventContextFormatterTest. 
@@ -33,7 +33,7 @@ final class EventOutputFormatter {
         config.privateAttributes.toArray(new AttributeRef[config.privateAttributes.size()]));
   }
   
-  final int writeOutputEvents(Event[] events, EventSummarizer.EventSummary summary, Writer writer) throws IOException {
+  int writeOutputEvents(Event[] events, EventSummarizer.EventSummary summary, Writer writer) throws IOException {
     int count = 0;    
     JsonWriter jsonWriter = new JsonWriter(writer);
     jsonWriter.beginArray();
@@ -51,7 +51,7 @@ final class EventOutputFormatter {
     return count;
   }
   
-  private final boolean writeOutputEvent(Event event, JsonWriter jw) throws IOException {
+  private boolean writeOutputEvent(Event event, JsonWriter jw) throws IOException {
     if (event.getContext() == null || !event.getContext().isValid()) {
       // The SDK should never send us an event without a valid context, but if we somehow get one,
       // just skip the event since there's no way to serialize it.
@@ -81,7 +81,7 @@ final class EventOutputFormatter {
         jw.name("prereqOf");
         jw.value(fe.getPrereqOf());
       }
-      writeEvaluationReason("reason", fe.getReason(), jw);
+      writeEvaluationReason(fe.getReason(), jw);
       jw.endObject();
     } else if (event instanceof Event.Identify) {
       jw.beginObject();
@@ -105,13 +105,129 @@ final class EventOutputFormatter {
       writeKindAndCreationDate(jw, "index", event.getCreationDate());
       writeContext(event.getContext(), jw);
       jw.endObject();
+    } else if (event instanceof Event.MigrationOp) {
+      jw.beginObject();
+      writeKindAndCreationDate(jw, "migration_op", event.getCreationDate());
+      writeContextKeys(event.getContext(), jw);
+
+      Event.MigrationOp me = (Event.MigrationOp)event;
+      jw.name("operation").value(me.getOperation());
+
+      long samplingRatio = me.getSamplingRatio();
+      if(samplingRatio != 1) {
+        jw.name("samplingRatio").value(samplingRatio);
+      }
+
+      writeMigrationEvaluation(jw, me);
+      writeMeasurements(jw, me);
+
+      jw.endObject();
     } else {
       return false;
     }
     return true;
   }
-  
-  private final void writeSummaryEvent(EventSummarizer.EventSummary summary, JsonWriter jw) throws IOException {
+
+  private static void writeMeasurements(JsonWriter jw, Event.MigrationOp me) throws IOException {
+    jw.name("measurements");
+    jw.beginArray();
+
+    writeInvokedMeasurement(jw, me);
+    writeConsistencyMeasurement(jw, me);
+    writeLatencyMeasurement(jw, me);
+    writeErrorMeasurement(jw, me);
+
+    jw.endArray(); // end measurements
+  }
+
+  private static void writeErrorMeasurement(JsonWriter jw, Event.MigrationOp me) throws IOException {
+    Event.MigrationOp.ErrorMeasurement errorMeasurement = me.getErrorMeasurement();
+    if(errorMeasurement != null && errorMeasurement.hasMeasurement()) {
+      jw.beginObject();
+      jw.name("key").value("error");
+      jw.name("values");
+      jw.beginObject();
+      if(errorMeasurement.hasOldError()) {
+        jw.name("old").value(errorMeasurement.hasOldError());
+      }
+      if(errorMeasurement.hasNewError()) {
+        jw.name("new").value(errorMeasurement.hasNewError());
+      }
+      jw.endObject(); // end of values
+      jw.endObject(); // end of measurement
+    }
+  }
+
+  private static void writeLatencyMeasurement(JsonWriter jw, Event.MigrationOp me) throws IOException {
+    Event.MigrationOp.LatencyMeasurement latencyMeasurement = me.getLatencyMeasurement();
+    if(latencyMeasurement != null && latencyMeasurement.hasMeasurement()) {
+      jw.beginObject();
+
+      jw.name("key").value("latency_ms");
+
+      jw.name("values");
+      jw.beginObject();
+      if(latencyMeasurement.getOldLatencyMs() != null) {
+        jw.name("old").value(latencyMeasurement.getOldLatencyMs());
+      }
+      if(latencyMeasurement.getNewLatencyMs() != null) {
+        jw.name("new").value(latencyMeasurement.getNewLatencyMs());
+      }
+
+      jw.endObject(); // end of values
+      jw.endObject(); // end of measurement
+    }
+  }
+
+  private static void writeConsistencyMeasurement(JsonWriter jw, Event.MigrationOp me) throws IOException {
+    Event.MigrationOp.ConsistencyMeasurement consistencyMeasurement = me.getConsistencyMeasurement();
+    if(consistencyMeasurement != null) {
+      jw.beginObject();
+      jw.name("key").value("consistent");
+      jw.name("value").value(consistencyMeasurement.isConsistent());
+      if(consistencyMeasurement.getSamplingRatio() != 1) {
+        jw.name("samplingRatio").value(consistencyMeasurement.getSamplingRatio());
+      }
+      jw.endObject(); // end measurement
+    }
+  }
+
+  private static void writeInvokedMeasurement(JsonWriter jw, Event.MigrationOp me) throws IOException {
+    jw.beginObject();
+    jw.name("key").value("invoked");
+    Event.MigrationOp.InvokedMeasurement invokedMeasurement = me.getInvokedMeasurement();
+
+    jw.name("values");
+    jw.beginObject();
+    if(invokedMeasurement.wasOldInvoked()) {
+      jw.name("old").value(invokedMeasurement.wasOldInvoked());
+    }
+    if(invokedMeasurement.wasNewInvoked()) {
+      jw.name("new").value(invokedMeasurement.wasNewInvoked());
+    }
+    jw.endObject(); // end values
+    jw.endObject(); // end measurement
+  }
+
+  private void writeMigrationEvaluation(JsonWriter jw, Event.MigrationOp me) throws IOException {
+    jw.name("evaluation");
+    jw.beginObject();
+    jw.name("key").value(me.getFeatureKey());
+    if (me.getVariation() >= 0) {
+      jw.name("variation");
+      jw.value(me.getVariation());
+    }
+    if (me.getFlagVersion() >= 0) {
+      jw.name("version");
+      jw.value(me.getFlagVersion());
+    }
+    writeLDValue("value", me.getValue(), jw);
+    writeLDValue("default", me.getDefaultVal(), jw);
+    writeEvaluationReason(me.getReason(), jw);
+    jw.endObject();
+  }
+
+  private void writeSummaryEvent(EventSummarizer.EventSummary summary, JsonWriter jw) throws IOException {
     jw.beginObject();
     
     jw.name("kind");
@@ -174,17 +290,17 @@ final class EventOutputFormatter {
     jw.endObject(); // end of summary event object
   }
   
-  private final void writeKindAndCreationDate(JsonWriter jw, String kind, long creationDate) throws IOException {
+  private void writeKindAndCreationDate(JsonWriter jw, String kind, long creationDate) throws IOException {
     jw.name("kind").value(kind);
     jw.name("creationDate").value(creationDate);
   }
   
-  private final void writeContext(LDContext context, JsonWriter jw) throws IOException {
+  private void writeContext(LDContext context, JsonWriter jw) throws IOException {
     jw.name("context");
     contextFormatter.write(context, jw);
   }
   
-  private final void writeContextKeys(LDContext context, JsonWriter jw) throws IOException {
+  private void writeContextKeys(LDContext context, JsonWriter jw) throws IOException {
     jw.name("contextKeys").beginObject();
     for (int i = 0; i < context.getIndividualContextCount(); i++) {
       LDContext c = context.getIndividualContext(i);
@@ -195,7 +311,7 @@ final class EventOutputFormatter {
     jw.endObject();
   }
   
-  private final void writeLDValue(String key, LDValue value, JsonWriter jw) throws IOException {
+  private void writeLDValue(String key, LDValue value, JsonWriter jw) throws IOException {
     if (value == null || value.isNull()) {
       return;
     }
@@ -203,11 +319,11 @@ final class EventOutputFormatter {
     gsonInstance().toJson(value, LDValue.class, jw); // LDValue defines its own custom serializer
   }
   
-  private final void writeEvaluationReason(String key, EvaluationReason er, JsonWriter jw) throws IOException {
+  private void writeEvaluationReason(EvaluationReason er, JsonWriter jw) throws IOException {
     if (er == null) {
       return;
     }
-    jw.name(key);
+    jw.name("reason");
     gsonInstance().toJson(er, EvaluationReason.class, jw); // EvaluationReason defines its own custom serializer
   }
 }
