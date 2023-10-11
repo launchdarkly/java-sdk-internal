@@ -27,7 +27,7 @@ import static org.junit.Assert.assertEquals;
 public class EventOutputTest extends BaseEventTest {
   private static final Gson gson = new Gson();
   
-  private ContextBuilder contextBuilderWithAllAttributes = LDContext.builder("userkey")
+  private final ContextBuilder contextBuilderWithAllAttributes = LDContext.builder("userkey")
       .anonymous(true)
       .name("me")
       .set("custom1", "value1")
@@ -312,7 +312,311 @@ public class EventOutputTest extends BaseEventTest {
         parseValue("{\"unknown\":true,\"value\":\"default3\",\"count\":1}")
     ));
   }
-  
+
+  @Test
+  public void migrationOpEventIsSerialized() throws IOException {
+    LDContext context = LDContext.builder("user-key").name("me").build();
+    EventOutputFormatter f = new EventOutputFormatter(defaultEventsConfig());
+
+    Event.MigrationOp event = new Event.MigrationOp(
+        0,
+        context,
+        "migration-key",
+        1,
+        2,
+        LDValue.of("live"),
+        LDValue.of("off"),
+        EvaluationReason.fallthrough(false),
+        2,
+        "read",
+        new Event.MigrationOp.InvokedMeasurement(false, true),
+        new Event.MigrationOp.ConsistencyMeasurement(true, 1),
+        new Event.MigrationOp.LatencyMeasurement(100l, 50l),
+        new Event.MigrationOp.ErrorMeasurement(false, true)
+    );
+
+    LDValue received = getSingleOutputEvent(f, event);
+    LDValue expected = LDValue.buildObject()
+        .put("operation", "read")
+        .put("kind", "migration_op")
+        .put("creationDate", 0)
+        .put("evaluation", LDValue.buildObject()
+            .put("key", "migration-key")
+            .put("variation", 1)
+            .put("version", 2)
+            .put("value", "live")
+            .put("default", "off")
+            .put("reason", LDValue.buildObject()
+                .put("kind", "FALLTHROUGH")
+                .build()).build())
+        .put("contextKeys", LDValue.buildObject()
+            .put("user", "user-key")
+            .build())
+        .put("samplingRatio", 2)
+        .put("measurements", LDValue.buildArray()
+            .add(LDValue.buildObject()
+                .put("key", "invoked")
+                .put("values", LDValue.buildObject()
+                    .put("new", true)
+                    .build())
+                .build())
+            .add(LDValue.buildObject()
+                .put("key", "consistent")
+                .put("value", true)
+                .build())
+            .add(LDValue.buildObject()
+                .put("key", "latency_ms")
+                .put("values", LDValue.buildObject()
+                    .put("old", 100)
+                    .put("new", 50)
+                    .build())
+                .build())
+            .add(LDValue.buildObject()
+                .put("key", "error")
+                .put("values", LDValue.buildObject()
+                    .put("new", true)
+                    .build())
+                .build())
+            .build())
+          .build();
+
+    assertJsonEquals(expected, received);
+  }
+
+  @Test
+  public void migrationOpEventSerializationCanExcludeOptionalItems() throws IOException {
+    LDContext context = LDContext.builder("user-key").name("me").build();
+    EventOutputFormatter f = new EventOutputFormatter(defaultEventsConfig());
+
+    Event.MigrationOp event = new Event.MigrationOp(
+        0,
+        context,
+        "migration-key",
+        -1,
+        -1,
+        LDValue.of("live"),
+        LDValue.of("off"),
+        EvaluationReason.fallthrough(false),
+        1,
+        "read",
+        new Event.MigrationOp.InvokedMeasurement(true, false),
+        null,
+        null,
+        null
+    );
+
+    LDValue received1 = getSingleOutputEvent(f, event);
+    Event.MigrationOp event2 = new Event.MigrationOp(
+        0,
+        context,
+        "migration-key",
+        -1,
+        -1,
+        LDValue.of("live"),
+        LDValue.of("off"),
+        EvaluationReason.fallthrough(false),
+        1,
+        "read",
+        new Event.MigrationOp.InvokedMeasurement(true, false),
+        null,
+        // Null measurement, versus a measurement containing no values, should behave the same.
+        new Event.MigrationOp.LatencyMeasurement(null, null),
+        new Event.MigrationOp.ErrorMeasurement(false, false)
+    );
+    LDValue received2 = getSingleOutputEvent(f, event2);
+
+    LDValue expected = LDValue.buildObject()
+        .put("operation", "read")
+        .put("kind", "migration_op")
+        .put("creationDate", 0)
+        .put("evaluation", LDValue.buildObject()
+            .put("key", "migration-key")
+            .put("value", "live")
+            .put("default", "off")
+            .put("reason", LDValue.buildObject()
+                .put("kind", "FALLTHROUGH")
+                .build()).build())
+        .put("contextKeys", LDValue.buildObject()
+            .put("user", "user-key")
+            .build())
+        .put("measurements", LDValue.buildArray()
+            .add(LDValue.buildObject()
+                .put("key", "invoked")
+                .put("values", LDValue.buildObject()
+                    .put("old", true)
+                    .build())
+                .build())
+            .build())
+        .build();
+
+    assertJsonEquals(expected, received1);
+    assertJsonEquals(expected, received2);
+  }
+
+  @Test
+  public void migrationOpEventCanSerializeDifferentLatencyPermutations() throws IOException {
+    LDContext context = LDContext.builder("user-key").name("me").build();
+    EventOutputFormatter f = new EventOutputFormatter(defaultEventsConfig());
+
+    Event.MigrationOp event1 = new Event.MigrationOp(
+        0,
+        context,
+        "migration-key",
+        1,
+        2,
+        LDValue.of("live"),
+        LDValue.of("off"),
+        EvaluationReason.fallthrough(false),
+        2,
+        "read",
+        new Event.MigrationOp.InvokedMeasurement(false, true),
+        null,
+        new Event.MigrationOp.LatencyMeasurement(null, 50l),
+        null
+    );
+
+    LDValue received1 = getSingleOutputEvent(f, event1);
+    assertJsonEquals(LDValue.buildObject()
+        .put("key", "latency_ms")
+        .put("values", LDValue.buildObject()
+            .put("new", 50)
+            .build())
+        .build(), received1.get("measurements").get(1));
+
+    Event.MigrationOp event2 = new Event.MigrationOp(
+        0,
+        context,
+        "migration-key",
+        1,
+        2,
+        LDValue.of("live"),
+        LDValue.of("off"),
+        EvaluationReason.fallthrough(false),
+        2,
+        "read",
+        new Event.MigrationOp.InvokedMeasurement(false, true),
+        null,
+        new Event.MigrationOp.LatencyMeasurement(50l, null),
+        null
+    );
+
+    LDValue received2 = getSingleOutputEvent(f, event2);
+    assertJsonEquals(LDValue.buildObject()
+        .put("key", "latency_ms")
+        .put("values", LDValue.buildObject()
+            .put("old", 50)
+            .build())
+        .build(), received2.get("measurements").get(1));
+
+    Event.MigrationOp event3 = new Event.MigrationOp(
+        0,
+        context,
+        "migration-key",
+        1,
+        2,
+        LDValue.of("live"),
+        LDValue.of("off"),
+        EvaluationReason.fallthrough(false),
+        2,
+        "read",
+        new Event.MigrationOp.InvokedMeasurement(false, true),
+        null,
+        new Event.MigrationOp.LatencyMeasurement(50l, 150l),
+        null
+    );
+
+    LDValue received3 = getSingleOutputEvent(f, event3);
+    assertJsonEquals(LDValue.buildObject()
+        .put("key", "latency_ms")
+        .put("values", LDValue.buildObject()
+            .put("old", 50)
+            .put("new", 150)
+            .build())
+        .build(), received3.get("measurements").get(1));
+  }
+
+  @Test
+  public void migrationOpEventCanSerializeDifferentErrorPermutations() throws IOException {
+    LDContext context = LDContext.builder("user-key").name("me").build();
+    EventOutputFormatter f = new EventOutputFormatter(defaultEventsConfig());
+
+    Event.MigrationOp event1 = new Event.MigrationOp(
+        0,
+        context,
+        "migration-key",
+        1,
+        2,
+        LDValue.of("live"),
+        LDValue.of("off"),
+        EvaluationReason.fallthrough(false),
+        2,
+        "read",
+        new Event.MigrationOp.InvokedMeasurement(false, true),
+        null,
+        null,
+        new Event.MigrationOp.ErrorMeasurement(true, false)
+    );
+
+    LDValue received1 = getSingleOutputEvent(f, event1);
+    assertJsonEquals(LDValue.buildObject()
+        .put("key", "error")
+        .put("values", LDValue.buildObject()
+            .put("old", true)
+            .build())
+        .build(), received1.get("measurements").get(1));
+
+    Event.MigrationOp event2 = new Event.MigrationOp(
+        0,
+        context,
+        "migration-key",
+        1,
+        2,
+        LDValue.of("live"),
+        LDValue.of("off"),
+        EvaluationReason.fallthrough(false),
+        2,
+        "read",
+        new Event.MigrationOp.InvokedMeasurement(false, true),
+        null,
+        null,
+        new Event.MigrationOp.ErrorMeasurement(false, true)
+    );
+
+    LDValue received2 = getSingleOutputEvent(f, event2);
+    assertJsonEquals(LDValue.buildObject()
+        .put("key", "error")
+        .put("values", LDValue.buildObject()
+            .put("new", true)
+            .build())
+        .build(), received2.get("measurements").get(1));
+
+    Event.MigrationOp event3 = new Event.MigrationOp(
+        0,
+        context,
+        "migration-key",
+        1,
+        2,
+        LDValue.of("live"),
+        LDValue.of("off"),
+        EvaluationReason.fallthrough(false),
+        2,
+        "read",
+        new Event.MigrationOp.InvokedMeasurement(false, true),
+        null,
+        null,
+        new Event.MigrationOp.ErrorMeasurement(true, true)
+    );
+
+    LDValue received3 = getSingleOutputEvent(f, event3);
+    assertJsonEquals(LDValue.buildObject()
+        .put("key", "error")
+        .put("values", LDValue.buildObject()
+            .put("old", true)
+            .put("new", true)
+            .build())
+        .build(), received3.get("measurements").get(1));
+  }
+
   @Test
   public void unknownEventClassIsNotSerialized() throws Exception {
     // This shouldn't be able to happen in reality.

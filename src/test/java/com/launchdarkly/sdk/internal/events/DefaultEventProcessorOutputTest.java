@@ -4,10 +4,13 @@ import com.launchdarkly.sdk.EvaluationReason;
 import com.launchdarkly.sdk.LDContext;
 import com.launchdarkly.sdk.LDValue;
 
+import com.launchdarkly.testhelpers.JsonTestValue;
 import org.hamcrest.Matchers;
+import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.Date;
+import java.util.List;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.allOf;
@@ -91,6 +94,46 @@ public class DefaultEventProcessorOutputTest extends BaseEventTest {
         isFeatureEvent(fe),
         isSummaryEvent()
     ));
+  }
+
+  @Test
+  public void featureEventWith0SamplingRatioIsNotSampled() throws Exception {
+    MockEventSender es = new MockEventSender();
+    Event.FeatureRequest fe = featureEvent(user, FLAG_KEY).trackEvents(true).samplingRatio(0).build();
+
+    EventContextDeduplicator contextDeduplicator = contextDeduplicatorThatAlwaysSaysKeysAreNew();
+
+    try (DefaultEventProcessor ep = makeEventProcessor(baseConfig(es).contextDeduplicator(contextDeduplicator))) {
+      ep.sendEvent(fe);
+    }
+
+    List<JsonTestValue> events = es.getEventsFromLastRequest();
+    assertThat(events, contains(
+        isIndexEvent(fe, userJson),
+        isSummaryEvent()
+    ));
+    // No feature event.
+    Assert.assertEquals(2, events.size());
+  }
+
+  @Test
+  public void featureEventCanBeExcludedFromSummaries() throws Exception {
+    MockEventSender es = new MockEventSender();
+    Event.FeatureRequest fe = featureEvent(user, FLAG_KEY).trackEvents(true).excludeFromSummaries(true).build();
+
+    EventContextDeduplicator contextDeduplicator = contextDeduplicatorThatAlwaysSaysKeysAreNew();
+
+    try (DefaultEventProcessor ep = makeEventProcessor(baseConfig(es).contextDeduplicator(contextDeduplicator))) {
+      ep.sendEvent(fe);
+    }
+
+    List<JsonTestValue> events = es.getEventsFromLastRequest();
+    assertThat(events, contains(
+        isIndexEvent(fe, userJson),
+        isFeatureEvent(fe)
+    ));
+    // No feature event.
+    Assert.assertEquals(2, events.size());
   }
 
   @SuppressWarnings("unchecked")
@@ -378,5 +421,38 @@ public class DefaultEventProcessorOutputTest extends BaseEventTest {
     assertThat(es.getEventsFromLastRequest(), contains(
         isCustomEvent(event3)
     ));
+  }
+
+  @Test
+  public void migrationEventIsQueued() throws Exception {
+    MockEventSender es = new MockEventSender();
+    Event.MigrationOp event = new Event.MigrationOp(
+        0,
+        user,
+        "migration-key",
+        1,
+        2,
+        LDValue.of("live"),
+        LDValue.of("off"),
+        EvaluationReason.fallthrough(false),
+        1,
+        "read",
+        new Event.MigrationOp.InvokedMeasurement(true, false),
+        null,
+        null,
+        null
+    );
+
+
+    try (DefaultEventProcessor ep = makeEventProcessor(baseConfig(es))) {
+      ep.sendEvent(event);
+    }
+
+    List<JsonTestValue> events = es.getEventsFromLastRequest();
+    assertThat(events, contains(
+        isMigrationEvent(event, userJson)
+    ));
+    // Migration events should not trigger any other events (index, debug, etc.)
+    Assert.assertEquals(1, events.size());
   }
 }

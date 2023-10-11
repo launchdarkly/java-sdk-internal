@@ -203,6 +203,15 @@ public abstract class BaseEventTest extends BaseTest {
     );
   }
 
+  public static Matcher<JsonTestValue> isMigrationEvent(Event sourceEvent, LDValue context) {
+    // Doesn't fully test an event, but makes sure it is a specific event.
+    return allOf(
+        jsonProperty("kind", "migration_op"),
+        jsonProperty("creationDate", (double)sourceEvent.getCreationDate()),
+        hasContextKeys(sourceEvent)
+    );
+  }
+
   public static Matcher<JsonTestValue> isIndexEvent() {
     return jsonProperty("kind", "index");
   }
@@ -462,6 +471,8 @@ public abstract class BaseEventTest extends BaseTest {
     private String prereqOf = null;
     private boolean trackEvents = false;
     private Long debugEventsUntilDate = null;
+    private long samplingRatio = 1;
+    private boolean excludeFromSummaries = false;
     
     public FeatureRequestEventBuilder(LDContext context, String flagKey) {
       this.context = context;
@@ -470,7 +481,8 @@ public abstract class BaseEventTest extends BaseTest {
     
     public Event.FeatureRequest build() {
       return new Event.FeatureRequest(timestamp, flagKey, context, flagVersion, variation, value,
-          defaultValue, reason, prereqOf, trackEvents, debugEventsUntilDate, false);
+          defaultValue, reason, prereqOf, trackEvents, debugEventsUntilDate, false, samplingRatio,
+          excludeFromSummaries);
     }
     
     public FeatureRequestEventBuilder flagVersion(int flagVersion) {
@@ -510,6 +522,16 @@ public abstract class BaseEventTest extends BaseTest {
 
     public FeatureRequestEventBuilder debugEventsUntilDate(Long debugEventsUntilDate) {
       this.debugEventsUntilDate = debugEventsUntilDate;
+      return this;
+    }
+
+    public FeatureRequestEventBuilder excludeFromSummaries(boolean excludeFromSummaries) {
+      this.excludeFromSummaries = excludeFromSummaries;
+      return this;
+    }
+
+    public FeatureRequestEventBuilder samplingRatio(long samplingRatio) {
+      this.samplingRatio = samplingRatio;
       return this;
     }
   }
