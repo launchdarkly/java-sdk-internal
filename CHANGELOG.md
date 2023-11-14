@@ -2,6 +2,11 @@
 
 All notable changes to the project will be documented in this file. This project adheres to [Semantic Versioning](http://semver.org).
 
+## [1.2.1] - 2023-11-14
+### Fixed:
+- Fixes NPE when interacting with Context created by use of `copyFrom`.  (Thanks, [
+pedroafonsodias](https://github.com/launchdarkly/java-sdk-common/pull/15))
+
 ## [1.2.0] - 2023-10-11
 ### Added:
 - Added support for the migration operation event.
