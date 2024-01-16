@@ -30,25 +30,25 @@ class EventContextFormatter {
     this.allAttributesPrivate = allAttributesPrivate;
     this.globalPrivateAttributes = globalPrivateAttributes == null ? new AttributeRef[0] : globalPrivateAttributes;
   }
-  
-  public void write(LDContext c, JsonWriter w) throws IOException {
+
+  public void write(LDContext c, JsonWriter w, boolean redactAnonymous) throws IOException {
     if (c.isMultiple()) {
       w.beginObject();
       w.name("kind").value("multi");
       for (int i = 0; i < c.getIndividualContextCount(); i++) {
         LDContext c1 = c.getIndividualContext(i);
         w.name(c1.getKind().toString());
-        writeSingleKind(c1, w, false);
+        writeSingleKind(c1, w, false, redactAnonymous);
       }
       w.endObject();
     } else {
-      writeSingleKind(c, w, true);
+      writeSingleKind(c, w, true, redactAnonymous);
     }
   }
-  
-  private void writeSingleKind(LDContext c, JsonWriter w, boolean includeKind) throws IOException {
+
+  private void writeSingleKind(LDContext c, JsonWriter w, boolean includeKind, boolean redactAnonymous) throws IOException {
     w.beginObject();
-    
+
     // kind, key, and anonymous are never redacted
     if (includeKind) {
       w.name("kind").value(c.getKind().toString());
@@ -57,21 +57,20 @@ class EventContextFormatter {
     if (c.isAnonymous()) {
       w.name("anonymous").value(true);
     }
-    
+
     List<String> redacted = null;
-    
     if (c.getName() != null) {
-      if (isAttributeEntirelyPrivate(c, "name")) {
+      if (isAttributeEntirelyPrivate(c, "name", redactAnonymous)) {
         redacted = addOrCreate(redacted, "name");
       } else {
         w.name("name").value(c.getName());
       }
     }
-    
+
     for (String attrName: c.getCustomAttributeNames()) {
-      redacted = writeOrRedactAttribute(w, c, attrName, c.getValue(attrName), redacted);
+      redacted = writeOrRedactAttribute(w, c, attrName, c.getValue(attrName), redacted, redactAnonymous);
     }
-    
+
     boolean haveRedacted = redacted != null && !redacted.isEmpty();
     if (haveRedacted) {
       w.name("_meta").beginObject();
@@ -82,31 +81,36 @@ class EventContextFormatter {
       w.endArray();
       w.endObject();
     }
-    
+
     w.endObject();
   }
-  
-  private boolean isAttributeEntirelyPrivate(LDContext c, String attrName) {
+
+  private boolean isAttributeEntirelyPrivate(LDContext c, String attrName, boolean redactAnonymous) {
     if (allAttributesPrivate) {
       return true;
+    } else if (redactAnonymous && c.isAnonymous()) {
+        return true;
     }
     AttributeRef privateRef = findPrivateRef(c, 1, attrName, null);
     return privateRef != null && privateRef.getDepth() == 1;
   }
-  
+
   private List<String> writeOrRedactAttribute(
       JsonWriter w,
       LDContext c,
       String attrName,
       LDValue value,
-      List<String> redacted
+      List<String> redacted,
+      boolean redactAnonymous
       ) throws IOException {
     if (allAttributesPrivate) {
+      return addOrCreate(redacted, attrName);
+    } else if (redactAnonymous && c.isAnonymous()) {
       return addOrCreate(redacted, attrName);
     }
     return writeRedactedValue(w, c, 0, attrName, value, null, redacted);
   }
-  
+
   // This method implements the context-aware attribute redaction logic, in which an attribute
   // can be 1. written as-is, 2. fully redacted, or 3. (for a JSON object) partially redacted.
   // It returns the updated redacted attribute list.

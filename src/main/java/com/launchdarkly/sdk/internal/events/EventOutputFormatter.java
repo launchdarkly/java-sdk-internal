@@ -62,7 +62,7 @@ final class EventOutputFormatter {
       jw.beginObject();
       writeKindAndCreationDate(jw, fe.isDebug() ? "debug" : "feature", event.getCreationDate());
       jw.name("key").value(fe.getKey());
-      writeContext(fe.getContext(), jw);
+      writeContext(fe.getContext(), jw, !fe.isDebug());
       if (fe.getVersion() >= 0) {
         jw.name("version");
         jw.value(fe.getVersion());
@@ -82,7 +82,7 @@ final class EventOutputFormatter {
     } else if (event instanceof Event.Identify) {
       jw.beginObject();
       writeKindAndCreationDate(jw, "identify", event.getCreationDate());
-      writeContext(event.getContext(), jw);
+      writeContext(event.getContext(), jw, false);
       jw.endObject();
     } else if (event instanceof Event.Custom) {
       Event.Custom ce = (Event.Custom)event;
@@ -99,7 +99,7 @@ final class EventOutputFormatter {
     } else if (event instanceof Event.Index) {
       jw.beginObject();
       writeKindAndCreationDate(jw, "index", event.getCreationDate());
-      writeContext(event.getContext(), jw);
+      writeContext(event.getContext(), jw, false);
       jw.endObject();
     } else if (event instanceof Event.MigrationOp) {
       jw.beginObject();
@@ -291,9 +291,9 @@ final class EventOutputFormatter {
     jw.name("creationDate").value(creationDate);
   }
 
-  private void writeContext(LDContext context, JsonWriter jw) throws IOException {
+  private void writeContext(LDContext context, JsonWriter jw, boolean redactAnonymous) throws IOException {
     jw.name("context");
-    contextFormatter.write(context, jw);
+    contextFormatter.write(context, jw, redactAnonymous);
   }
 
   private void writeContextKeys(LDContext context, JsonWriter jw) throws IOException {

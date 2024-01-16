@@ -28,14 +28,12 @@ public class EventOutputTest extends BaseEventTest {
   private static final Gson gson = new Gson();
 
   private final ContextBuilder contextBuilderWithAllAttributes = LDContext.builder("userkey")
-      .anonymous(true)
       .name("me")
       .set("custom1", "value1")
       .set("custom2", "value2");
   private static final LDValue contextJsonWithAllAttributes = parseValue("{" +
       "\"kind\":\"user\"," +
       "\"key\":\"userkey\"," +
-      "\"anonymous\":true," +
       "\"custom1\":\"value1\"," +
       "\"custom2\":\"value2\"," +
       "\"name\":\"me\"" +
@@ -191,6 +189,63 @@ public class EventOutputTest extends BaseEventTest {
         .put("context", LDValue.buildObject().put("kind", "user").put("key", "userkey").put("name", "me").build())
         .build();
     assertJsonEquals(feJson6, getSingleOutputEvent(f, prereqEvent));
+  }
+
+  @Test
+  public void featureEventRedactsAnonymousContextAttributes() throws Exception {
+    LDValue value = LDValue.of("flagvalue"), defaultVal = LDValue.of("defaultvalue");
+
+    // Single-kind context redaction
+    LDContext user_context = LDContext.builder("userkey").anonymous(true).name("me").set("age", 42).build();
+    EventOutputFormatter f = new EventOutputFormatter(defaultEventsConfig());
+
+    FeatureRequest feWithVariation1 = featureEvent(user_context, FLAG_KEY).flagVersion(FLAG_VERSION).variation(1)
+        .value(value).defaultValue(defaultVal).build();
+    LDValue contextJson = LDValue.buildObject()
+        .put("kind", "user")
+        .put("key", "userkey")
+        .put("anonymous", true)
+        .put("_meta", LDValue.parse("{\"redactedAttributes\":[\"name\", \"age\"]}"))
+        .build();
+    LDValue feJson1 = buildFeatureEventProps(FLAG_KEY)
+              .put("version", FLAG_VERSION)
+              .put("variation", 1)
+              .put("value", value)
+              .put("default", defaultVal)
+              .put("context", contextJson)
+              .build();
+    assertJsonEquals(feJson1, getSingleOutputEvent(f, feWithVariation1));
+
+    // Multi-kind context redaction
+    LDContext org_context = LDContext.builder("orgkey").anonymous(false).kind("org").name("me").set("age", 42).build();
+    LDContext multi_context = LDContext.createMulti(user_context, org_context);
+
+    FeatureRequest feWithVariation2 = featureEvent(multi_context, FLAG_KEY).flagVersion(FLAG_VERSION).variation(1)
+        .value(value).defaultValue(defaultVal).build();
+    LDValue userJson = LDValue.buildObject()
+        .put("key", "userkey")
+        .put("anonymous", true)
+        .put("_meta", LDValue.parse("{\"redactedAttributes\":[\"name\", \"age\"]}"))
+        .build();
+    LDValue orgJson = LDValue.buildObject()
+        .put("key", "orgkey")
+        .put("name", "me")
+        .put("age", 42)
+        .build();
+    contextJson = LDValue.buildObject()
+        .put("kind", "multi")
+        .put("user", userJson)
+        .put("org", orgJson)
+        .build();
+
+    LDValue feJson2 = buildFeatureEventProps(FLAG_KEY)
+              .put("version", FLAG_VERSION)
+              .put("variation", 1)
+              .put("value", value)
+              .put("default", defaultVal)
+              .put("context", contextJson)
+              .build();
+    assertJsonEquals(feJson2, getSingleOutputEvent(f, feWithVariation2));
   }
 
   @Test

@@ -144,8 +144,8 @@ public class EventContextFormatterTest extends BaseTest {
     EventContextFormatter f = new EventContextFormatter(allAttributesPrivate, globalPrivateAttributes);
     StringWriter sw = new StringWriter();
     JsonWriter jw = new JsonWriter(sw);
-    
-    f.write(context, jw);
+
+    f.write(context, jw, false);
     jw.flush();
     
     String canonicalizedOutput = canonicalizeOutputJson(sw.toString());
