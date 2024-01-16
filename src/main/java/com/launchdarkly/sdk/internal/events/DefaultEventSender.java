@@ -34,7 +34,7 @@ public final class DefaultEventSender implements EventSender {
    * Default value for {@code retryDelayMillis} parameter.
    */
   public static final long DEFAULT_RETRY_DELAY_MILLIS = 1000;
-  
+
   /**
    * Default value for {@code analyticsRequestPath} parameter, for the server-side SDK.
    * The Android SDK should modify this value.
@@ -46,7 +46,7 @@ public final class DefaultEventSender implements EventSender {
    * The Android SDK should modify this value.
    */
   public static final String DEFAULT_DIAGNOSTIC_REQUEST_PATH = "/diagnostic";
-  
+
   private static final String EVENT_SCHEMA_HEADER = "X-LaunchDarkly-Event-Schema";
   private static final String EVENT_SCHEMA_VERSION = "4";
   private static final String EVENT_PAYLOAD_ID_HEADER = "X-LaunchDarkly-Payload-ID";
@@ -65,7 +65,7 @@ public final class DefaultEventSender implements EventSender {
 
   /**
    * Creates an instance.
-   * 
+   *
    * @param httpProperties the HTTP configuration
    * @param analyticsRequestPath the request path for posting analytics events
    * @param diagnosticRequestPath the request path for posting diagnostic events
@@ -91,20 +91,20 @@ public final class DefaultEventSender implements EventSender {
     this.baseHeaders = httpProperties.toHeadersBuilder()
         .add("Content-Type", "application/json")
         .build();
-    
+
     this.analyticsRequestPath = analyticsRequestPath == null ? DEFAULT_ANALYTICS_REQUEST_PATH : analyticsRequestPath;
     this.diagnosticRequestPath = diagnosticRequestPath == null ? DEFAULT_DIAGNOSTIC_REQUEST_PATH : diagnosticRequestPath;
-    
+
     this.retryDelayMillis = retryDelayMillis <= 0 ? DEFAULT_RETRY_DELAY_MILLIS : retryDelayMillis;
   }
-  
+
   @Override
   public void close() throws IOException {
     if (shouldCloseHttpClient) {
       HttpProperties.shutdownHttpClient(httpClient);
     }
   }
-  
+
   @Override
   public Result sendAnalyticsEvents(byte[] data, int eventCount, URI eventsBaseUri) {
     return sendEventData(false, data, eventCount, eventsBaseUri);
@@ -114,20 +114,20 @@ public final class DefaultEventSender implements EventSender {
   public Result sendDiagnosticEvent(byte[] data, URI eventsBaseUri) {
     return sendEventData(true, data, 1, eventsBaseUri);
   }
-  
+
   private Result sendEventData(boolean isDiagnostic, byte[] data, int eventCount, URI eventsBaseUri) {
     if (data == null || data.length == 0) {
       // DefaultEventProcessor won't normally pass us an empty payload, but if it does, don't bother sending
       return new Result(true, false, null);
     }
-    
+
     Headers.Builder headersBuilder = baseHeaders.newBuilder();
     String path;
     String description;
-    
+
     if (isDiagnostic) {
       path = diagnosticRequestPath;
-      description = "diagnostic event";    
+      description = "diagnostic event";
     } else {
       path = analyticsRequestPath;
       String eventPayloadId = UUID.randomUUID().toString();
@@ -135,12 +135,12 @@ public final class DefaultEventSender implements EventSender {
       headersBuilder.add(EVENT_SCHEMA_HEADER, EVENT_SCHEMA_VERSION);
       description = String.format("%d event(s)", eventCount);
     }
-    
+
     URI uri = HttpHelpers.concatenateUriPath(eventsBaseUri, path);
     Headers headers = headersBuilder.build();
     RequestBody body = RequestBody.create(data, JSON_CONTENT_TYPE);
     boolean mustShutDown = false;
-    
+
     logger.debug("Posting {} to {} with payload: {}", description, uri,
         LogValues.defer(new LazilyPrintedUtf8Data(data)));
 
@@ -162,15 +162,15 @@ public final class DefaultEventSender implements EventSender {
       long startTime = System.currentTimeMillis();
       String nextActionMessage = attempt == 0 ? "will retry" : "some events were dropped";
       String errorContext = "posting " + description;
-      
+
       try (Response response = httpClient.newCall(request).execute()) {
         long endTime = System.currentTimeMillis();
         logger.debug("{} delivery took {} ms, response status {}", description, endTime - startTime, response.code());
-        
+
         if (response.isSuccessful()) {
           return new Result(true, false, parseResponseDate(response));
         }
-        
+
         String errorDesc = httpErrorDescription(response.code());
         boolean recoverable = checkIfErrorIsRecoverableAndLog(
             logger,
@@ -187,10 +187,10 @@ public final class DefaultEventSender implements EventSender {
         checkIfErrorIsRecoverableAndLog(logger, e.toString(), errorContext, 0, nextActionMessage);
       }
     }
-    
+
     return new Result(false, mustShutDown, null);
   }
-  
+
   private final Date parseResponseDate(Response response) {
     String dateStr = response.header("Date");
     if (dateStr != null) {
@@ -205,10 +205,10 @@ public final class DefaultEventSender implements EventSender {
     }
     return null;
   }
-  
+
   private final class LazilyPrintedUtf8Data implements LogValues.StringProvider {
     private final byte[] data;
-    
+
     LazilyPrintedUtf8Data(byte[] data) {
       this.data = data;
     }

@@ -62,7 +62,7 @@ public abstract class BaseEventTest extends BaseTest {
   public static void assertJsonEquals(LDValue expected, LDValue actual) {
     JsonAssertions.assertJsonEquals(expected.toJsonString(), actual.toJsonString());
   }
-  
+
   public static EventsConfigurationBuilder baseConfig(EventSender es) {
     return new EventsConfigurationBuilder().eventSender(es);
   }
@@ -94,7 +94,7 @@ public abstract class BaseEventTest extends BaseTest {
         .privateAttributes(privateAttributes == null ? null : new HashSet<>(privateAttributes))
         .build();
   }
-  
+
   public static EvaluationDetail<LDValue> simpleEvaluation(int variation, LDValue value) {
     return EvaluationDetail.fromValue(value, variation, EvaluationReason.off());
   }
@@ -104,7 +104,7 @@ public abstract class BaseEventTest extends BaseTest {
     final String data;
     final int eventCount;
     final URI eventsBaseUri;
-    
+
     CapturedPayload(boolean diagnostic, String data, int eventCount, URI eventsBaseUri) {
       this.diagnostic = diagnostic;
       this.data = data;
@@ -121,9 +121,9 @@ public abstract class BaseEventTest extends BaseTest {
     volatile IOException fakeErrorOnClose = null;
     volatile CountDownLatch receivedCounter = null;
     volatile Object waitSignal = null;
-    
+
     final BlockingQueue<CapturedPayload> receivedParams = new LinkedBlockingQueue<>();
-    
+
     @Override
     public Result sendAnalyticsEvents(byte[] data, int eventCount, URI eventsBaseUri) {
       testLogger.debug("[MockEventSender] received {} events: {}", eventCount, new String(data));
@@ -135,7 +135,7 @@ public abstract class BaseEventTest extends BaseTest {
       testLogger.debug("[MockEventSender] received diagnostic event: {}", new String(data));
       return receive(true, data, 1, eventsBaseUri);
     }
-    
+
     @Override
     public void close() throws IOException {
       closed = true;
@@ -147,7 +147,7 @@ public abstract class BaseEventTest extends BaseTest {
     private Result receive(boolean diagnostic, byte[] data, int eventCount, URI eventsBaseUri) {
       receivedParams.add(new CapturedPayload(diagnostic, new String(data, Charset.forName("UTF-8")), eventCount, eventsBaseUri));
       if (waitSignal != null) {
-        // this is used in DefaultEventProcessorTest.eventsAreKeptInBufferIfAllFlushWorkersAreBusy 
+        // this is used in DefaultEventProcessorTest.eventsAreKeptInBufferIfAllFlushWorkersAreBusy
         synchronized (waitSignal) {
           if (receivedCounter != null) {
             receivedCounter.countDown();
@@ -162,7 +162,7 @@ public abstract class BaseEventTest extends BaseTest {
       }
       return result;
     }
-    
+
     CapturedPayload awaitRequest() {
       return awaitValue(receivedParams, 5, TimeUnit.SECONDS);
     }
@@ -172,17 +172,17 @@ public abstract class BaseEventTest extends BaseTest {
       assertFalse("expected analytics event but got diagnostic event instead", p.diagnostic);
       return p;
     }
-    
+
     CapturedPayload awaitDiagnostic() {
       CapturedPayload p = awaitValue(receivedParams, 5, TimeUnit.SECONDS);
       assertTrue("expected a diagnostic event but got analytics events instead", p.diagnostic);
       return p;
     }
-    
+
     void expectNoRequests(long timeoutMillis) {
       assertNoMoreValues(receivedParams, timeoutMillis, TimeUnit.MILLISECONDS);
     }
-    
+
     List<JsonTestValue> getEventsFromLastRequest() {
       CapturedPayload p = awaitRequest();
       LDValue a = LDValue.parse(p.data);
@@ -224,8 +224,8 @@ public abstract class BaseEventTest extends BaseTest {
     );
   }
 
-  public static Matcher<JsonTestValue> isFeatureEvent(Event.FeatureRequest sourceEvent) {
-    return isFeatureOrDebugEvent(sourceEvent, null, false);
+  public static Matcher<JsonTestValue> isFeatureEvent(Event.FeatureRequest sourceEvent, LDValue inlineContext) {
+    return isFeatureOrDebugEvent(sourceEvent, inlineContext, false);
   }
 
   public static Matcher<JsonTestValue> isDebugEvent(Event.FeatureRequest sourceEvent, LDValue inlineContext) {
@@ -242,7 +242,7 @@ public abstract class BaseEventTest extends BaseTest {
         jsonProperty("version", sourceEvent.getVersion()),
         jsonProperty("variation", sourceEvent.getVariation()),
         jsonProperty("value", jsonFromValue(sourceEvent.getValue())),
-        inlineContext == null ? hasContextKeys(sourceEvent) : hasInlineContext(inlineContext),
+        hasInlineContext(inlineContext),
         jsonProperty("reason", sourceEvent.getReason() == null ? jsonUndefined() : jsonEqualsValue(sourceEvent.getReason())),
         jsonProperty("prereqOf", sourceEvent.getPrereqOf() == null ? jsonUndefined() : jsonEqualsValue(sourceEvent.getPrereqOf()))
     );
@@ -256,7 +256,7 @@ public abstract class BaseEventTest extends BaseTest {
         jsonProperty("key", sourceEvent.getKey()),
         hasContextKeys(sourceEvent),
         jsonProperty("data", hasData ? jsonEqualsValue(sourceEvent.getData()) : jsonUndefined()),
-        jsonProperty("metricValue", sourceEvent.getMetricValue() == null ? jsonUndefined() : jsonEqualsValue(sourceEvent.getMetricValue()))              
+        jsonProperty("metricValue", sourceEvent.getMetricValue() == null ? jsonUndefined() : jsonEqualsValue(sourceEvent.getMetricValue()))
     );
   }
 
@@ -269,14 +269,14 @@ public abstract class BaseEventTest extends BaseTest {
     }
     return jsonProperty("contextKeys", jsonEqualsValue(b.build()));
   }
-  
+
   public static Matcher<JsonTestValue> hasInlineContext(LDValue inlineContext) {
     return allOf(
         jsonProperty("context", jsonEqualsValue(inlineContext)),
         jsonProperty("contextKeys", jsonUndefined())
         );
   }
-  
+
   public static Matcher<JsonTestValue> isSummaryEvent() {
     return jsonProperty("kind", "summary");
   }
@@ -288,7 +288,7 @@ public abstract class BaseEventTest extends BaseTest {
         jsonProperty("endDate", (double)endDate)
     );
   }
-  
+
   public static Matcher<JsonTestValue> hasSummaryFlag(String key, LDValue defaultVal, Matcher<Iterable<? extends JsonTestValue>> counters) {
     return jsonProperty("features",
         jsonProperty(key, allOf(
@@ -296,7 +296,7 @@ public abstract class BaseEventTest extends BaseTest {
           jsonProperty("counters", isJsonArray(counters))
     )));
   }
-  
+
   public static Matcher<JsonTestValue> isSummaryEventCounter(int flagVersion, Integer variation, LDValue value, int count) {
     return allOf(
         jsonProperty("variation", variation),
@@ -313,11 +313,11 @@ public abstract class BaseEventTest extends BaseTest {
   public static CustomEventBuilder customEvent(LDContext context, String flagKey) {
     return new CustomEventBuilder(context, flagKey);
   }
-  
+
   public static Event.Identify identifyEvent(LDContext context) {
     return new Event.Identify(FAKE_TIME, context);
   }
-  
+
   /**
    * This builder is similar to the public SDK configuration builder for events, except it is building
    * the internal config object for the lower-level event processing code. This allows us to test that
@@ -325,10 +325,10 @@ public abstract class BaseEventTest extends BaseTest {
    * the same as the defaults in the SDK; they are chosen to make it unlikely for tests to be affected
    * by any behavior we're not specifically trying to test-- for instance, a long flush interval means
    * that flushes normally won't happen, and any test where we want flushes to happen will not rely on
-   * the defaults.    
+   * the defaults.
    * <p>
    * This is defined only in test code, instead of as an inner class of EventsConfiguration, because
-   * in non-test code there's only one place where we ever construct EventsConfiguration. 
+   * in non-test code there's only one place where we ever construct EventsConfiguration.
    */
   public static class EventsConfigurationBuilder {
     private boolean allAttributesPrivate = false;
@@ -360,12 +360,12 @@ public abstract class BaseEventTest extends BaseTest {
           privateAttributes
           );
     }
-    
+
     public EventsConfigurationBuilder allAttributesPrivate(boolean allAttributesPrivate) {
       this.allAttributesPrivate = allAttributesPrivate;
       return this;
     }
-    
+
     public EventsConfigurationBuilder capacity(int capacity) {
       this.capacity = capacity;
       return this;
@@ -375,32 +375,32 @@ public abstract class BaseEventTest extends BaseTest {
       this.contextDeduplicator = contextDeduplicator;
       return this;
     }
-    
+
     public EventsConfigurationBuilder diagnosticRecordingIntervalMillis(long diagnosticRecordingIntervalMillis) {
       this.diagnosticRecordingIntervalMillis = diagnosticRecordingIntervalMillis;
       return this;
     }
-    
+
     public EventsConfigurationBuilder diagnosticStore(DiagnosticStore diagnosticStore) {
       this.diagnosticStore = diagnosticStore;
       return this;
     }
-    
+
     public EventsConfigurationBuilder eventSender(EventSender eventSender) {
       this.eventSender = eventSender;
       return this;
     }
-    
+
     public EventsConfigurationBuilder eventSendingThreadPoolSize(int eventSendingThreadPoolSize) {
       this.eventSendingThreadPoolSize = eventSendingThreadPoolSize;
       return this;
     }
-    
+
     public EventsConfigurationBuilder eventsUri(URI eventsUri) {
       this.eventsUri = eventsUri;
       return this;
     }
-    
+
     public EventsConfigurationBuilder flushIntervalMillis(long flushIntervalMillis) {
       this.flushIntervalMillis = flushIntervalMillis;
       return this;
@@ -415,13 +415,13 @@ public abstract class BaseEventTest extends BaseTest {
       this.initiallyOffline = initiallyOffline;
       return this;
     }
-    
+
     public EventsConfigurationBuilder privateAttributes(Set<AttributeRef> privateAttributes) {
       this.privateAttributes = privateAttributes;
       return this;
     }
   }
-  
+
   public static EventContextDeduplicator contextDeduplicatorThatAlwaysSaysKeysAreNew() {
     return new EventContextDeduplicator() {
       @Override
@@ -438,11 +438,11 @@ public abstract class BaseEventTest extends BaseTest {
       public void flush() {}
     };
   }
-  
+
   public static EventContextDeduplicator contextDeduplicatorThatSaysKeyIsNewOnFirstCallOnly() {
     return new EventContextDeduplicator() {
       private int calls = 0;
-      
+
       @Override
       public Long getFlushInterval() {
         return null;
@@ -456,9 +456,9 @@ public abstract class BaseEventTest extends BaseTest {
 
       @Override
       public void flush() {}
-    };  
+    };
   }
-  
+
   public static final class FeatureRequestEventBuilder {
     private long timestamp = FAKE_TIME;
     private LDContext context;
@@ -473,43 +473,43 @@ public abstract class BaseEventTest extends BaseTest {
     private Long debugEventsUntilDate = null;
     private long samplingRatio = 1;
     private boolean excludeFromSummaries = false;
-    
+
     public FeatureRequestEventBuilder(LDContext context, String flagKey) {
       this.context = context;
       this.flagKey = flagKey;
     }
-    
+
     public Event.FeatureRequest build() {
       return new Event.FeatureRequest(timestamp, flagKey, context, flagVersion, variation, value,
           defaultValue, reason, prereqOf, trackEvents, debugEventsUntilDate, false, samplingRatio,
           excludeFromSummaries);
     }
-    
+
     public FeatureRequestEventBuilder flagVersion(int flagVersion) {
       this.flagVersion = flagVersion;
       return this;
     }
-    
+
     public FeatureRequestEventBuilder variation(int variation) {
       this.variation = variation;
       return this;
     }
-    
+
     public FeatureRequestEventBuilder value(LDValue value) {
       this.value = value;
       return this;
     }
-    
+
     public FeatureRequestEventBuilder defaultValue(LDValue defaultValue) {
       this.defaultValue = defaultValue;
       return this;
     }
-    
+
     public FeatureRequestEventBuilder reason(EvaluationReason reason) {
       this.reason = reason;
       return this;
     }
-    
+
     public FeatureRequestEventBuilder prereqOf(String prereqOf) {
       this.prereqOf = prereqOf;
       return this;
@@ -535,28 +535,28 @@ public abstract class BaseEventTest extends BaseTest {
       return this;
     }
   }
-  
+
   public static final class CustomEventBuilder {
     private long timestamp = FAKE_TIME;
     private LDContext context;
     private String eventKey;
     private LDValue data = LDValue.ofNull();
     private Double metricValue = null;
-    
+
     public CustomEventBuilder(LDContext context, String eventKey) {
       this.context = context;
       this.eventKey = eventKey;
     }
-    
+
     public Event.Custom build() {
       return new Event.Custom(timestamp, eventKey, context, data, metricValue);
     }
-    
+
     public CustomEventBuilder data(LDValue data) {
       this.data = data;
       return this;
     }
-    
+
     public CustomEventBuilder metricValue(Double metricValue) {
       this.metricValue = metricValue;
       return this;

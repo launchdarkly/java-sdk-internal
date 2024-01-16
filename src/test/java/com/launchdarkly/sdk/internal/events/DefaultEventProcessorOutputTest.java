@@ -22,13 +22,13 @@ import static org.hamcrest.Matchers.contains;
 @SuppressWarnings("javadoc")
 public class DefaultEventProcessorOutputTest extends BaseEventTest {
   private static final LDContext invalidContext = LDContext.create(null);
-  
+
   // Note: context deduplication behavior has been abstracted out of DefaultEventProcessor, so that
   // by default it does not generate any index events. Test cases in this file that are not
   // specifically related to index events use this default behavior, and do not expect to see any.
   // When we are specifically testing this behavior, we substitute a mock EventContextDeduplicator
   // so we can verify how its outputs affect DefaultEventProcessor.
-  
+
   @Test
   public void identifyEventIsQueued() throws Exception {
     MockEventSender es = new MockEventSender();
@@ -42,7 +42,7 @@ public class DefaultEventProcessorOutputTest extends BaseEventTest {
       isIdentifyEvent(e, userJson)
     ));
   }
-  
+
   @Test
   public void userIsFilteredInIdentifyEvent() throws Exception {
     MockEventSender es = new MockEventSender();
@@ -84,14 +84,14 @@ public class DefaultEventProcessorOutputTest extends BaseEventTest {
     Event.FeatureRequest fe = featureEvent(user, FLAG_KEY).trackEvents(true).build();
 
     EventContextDeduplicator contextDeduplicator = contextDeduplicatorThatAlwaysSaysKeysAreNew();
-    
+
     try (DefaultEventProcessor ep = makeEventProcessor(baseConfig(es).contextDeduplicator(contextDeduplicator))) {
       ep.sendEvent(fe);
     }
-  
+
     assertThat(es.getEventsFromLastRequest(), contains(
         isIndexEvent(fe, userJson),
-        isFeatureEvent(fe),
+        isFeatureEvent(fe, userJson),
         isSummaryEvent()
     ));
   }
@@ -130,7 +130,7 @@ public class DefaultEventProcessorOutputTest extends BaseEventTest {
     List<JsonTestValue> events = es.getEventsFromLastRequest();
     assertThat(events, contains(
         isIndexEvent(fe, userJson),
-        isFeatureEvent(fe)
+        isFeatureEvent(fe, userJson)
     ));
     // No feature event.
     Assert.assertEquals(2, events.size());
@@ -147,7 +147,7 @@ public class DefaultEventProcessorOutputTest extends BaseEventTest {
     try (DefaultEventProcessor ep = makeEventProcessor(baseConfig(es).allAttributesPrivate(true).contextDeduplicator(contextDeduplicator))) {
       ep.sendEvent(fe);
     }
-  
+
     assertThat(es.getEventsFromLastRequest(), contains(
         isIndexEvent(fe, filteredUserJson),
         isSummaryEvent()
@@ -164,9 +164,9 @@ public class DefaultEventProcessorOutputTest extends BaseEventTest {
     try (DefaultEventProcessor ep = makeEventProcessor(baseConfig(es))) {
       ep.sendEvent(fe);
     }
-  
+
     assertThat(es.getEventsFromLastRequest(), contains(
-        isFeatureEvent(fe),
+        isFeatureEvent(fe, userJson),
         isSummaryEvent()
     ));
   }
@@ -184,12 +184,12 @@ public class DefaultEventProcessorOutputTest extends BaseEventTest {
       ep.sendEvent(event1);
       ep.sendEvent(event2);
     }
-    
+
     assertThat(es.getEventsFromLastRequest(), contains(
         isSummaryEvent()
     ));
   }
-  
+
   @SuppressWarnings("unchecked")
   @Test
   public void featureEventCanContainReason() throws Exception {
@@ -202,11 +202,11 @@ public class DefaultEventProcessorOutputTest extends BaseEventTest {
     }
 
     assertThat(es.getEventsFromLastRequest(), contains(
-        isFeatureEvent(fe),
+        isFeatureEvent(fe, userJson),
         isSummaryEvent()
     ));
   }
-  
+
   @SuppressWarnings("unchecked")
   @Test
   public void eventKindIsDebugIfFlagIsTemporarilyInDebugMode() throws Exception {
@@ -217,13 +217,13 @@ public class DefaultEventProcessorOutputTest extends BaseEventTest {
     try (DefaultEventProcessor ep = makeEventProcessor(baseConfig(es))) {
       ep.sendEvent(fe);
     }
-  
+
     assertThat(es.getEventsFromLastRequest(), contains(
         isDebugEvent(fe, userJson),
         isSummaryEvent()
     ));
   }
-  
+
   @SuppressWarnings("unchecked")
   @Test
   public void eventCanBeBothTrackedAndDebugged() throws Exception {
@@ -236,20 +236,20 @@ public class DefaultEventProcessorOutputTest extends BaseEventTest {
     }
 
     assertThat(es.getEventsFromLastRequest(), contains(
-        isFeatureEvent(fe),
+        isFeatureEvent(fe, userJson),
         isDebugEvent(fe, userJson),
         isSummaryEvent()
     ));
   }
-  
+
   @Test
   public void debugModeExpiresBasedOnClientTimeIfClientTimeIsLaterThanServerTime() throws Exception {
     MockEventSender es = new MockEventSender();
-    
+
     // Pick a server time that is somewhat behind the client time
     long serverTime = System.currentTimeMillis() - 20000;
     es.result = new EventSender.Result(true, false, new Date(serverTime));
-    
+
     long debugUntil = serverTime + 1000;
     Event.FeatureRequest fe = featureEvent(user, FLAG_KEY).debugEventsUntilDate(debugUntil).build();
 
@@ -258,15 +258,15 @@ public class DefaultEventProcessorOutputTest extends BaseEventTest {
       ep.sendEvent(identifyEvent(LDContext.create("otherUser")));
       ep.flushBlocking(); // wait till flush is done so we know we received the first response, with the date
       es.awaitRequest();
-      
+
       es.receivedParams.clear();
       es.result = new EventSender.Result(true, false, null);
-      
+
       // Now send an event with debug mode on, with a "debug until" time that is further in
       // the future than the server time, but in the past compared to the client.
       ep.sendEvent(fe);
     }
-    
+
     // Should get a summary event only, not a full feature event
     assertThat(es.getEventsFromLastRequest(), contains(
         isSummaryEvent(fe.getCreationDate(), fe.getCreationDate())
@@ -276,11 +276,11 @@ public class DefaultEventProcessorOutputTest extends BaseEventTest {
   @Test
   public void debugModeExpiresBasedOnServerTimeIfServerTimeIsLaterThanClientTime() throws Exception {
     MockEventSender es = new MockEventSender();
-    
+
     // Pick a server time that is somewhat ahead of the client time
     long serverTime = System.currentTimeMillis() + 20000;
     es.result = new EventSender.Result(true, false, new Date(serverTime));
-    
+
     long debugUntil = serverTime - 1000;
     Event.FeatureRequest fe = featureEvent(user, FLAG_KEY).debugEventsUntilDate(debugUntil).build();
 
@@ -289,7 +289,7 @@ public class DefaultEventProcessorOutputTest extends BaseEventTest {
       ep.sendEvent(identifyEvent(LDContext.create("otherUser")));
       ep.flushBlocking(); // wait till flush is done so we know we received the first response, with the date
       es.awaitRequest();
-      
+
       es.receivedParams.clear();
       es.result = new EventSender.Result(true, false, null);
 
@@ -297,13 +297,13 @@ public class DefaultEventProcessorOutputTest extends BaseEventTest {
       // the future than the client time, but in the past compared to the server.
       ep.sendEvent(fe);
     }
-    
+
     // Should get a summary event only, not a full feature event
     assertThat(es.getEventsFromLastRequest(), contains(
         isSummaryEvent(fe.getCreationDate(), fe.getCreationDate())
     ));
   }
-  
+
   @SuppressWarnings("unchecked")
   @Test
   public void twoFeatureEventsForSameContextGenerateOnlyOneIndexEvent() throws Exception {
@@ -311,7 +311,7 @@ public class DefaultEventProcessorOutputTest extends BaseEventTest {
     // EventContextDeduplicator says about whether a context key is new or not. We will set up
     // an EventContextDeduplicator that reports "new" on the first call and "not new" on the 2nd.
     EventContextDeduplicator contextDeduplicator = contextDeduplicatorThatSaysKeyIsNewOnFirstCallOnly();
-    
+
     MockEventSender es = new MockEventSender();
     Event.FeatureRequest fe1 = featureEvent(user, "flagkey1").trackEvents(true).build();
     Event.FeatureRequest fe2 = featureEvent(user, "flagkey2").trackEvents(true).build();
@@ -320,11 +320,11 @@ public class DefaultEventProcessorOutputTest extends BaseEventTest {
       ep.sendEvent(fe1);
       ep.sendEvent(fe2);
     }
-    
+
     assertThat(es.getEventsFromLastRequest(), contains(
         isIndexEvent(fe1, userJson),
-        isFeatureEvent(fe1),
-        isFeatureEvent(fe2),
+        isFeatureEvent(fe1, userJson),
+        isFeatureEvent(fe2, userJson),
         isSummaryEvent(fe1.getCreationDate(), fe2.getCreationDate())
     ));
   }
@@ -338,17 +338,17 @@ public class DefaultEventProcessorOutputTest extends BaseEventTest {
 
     try (DefaultEventProcessor ep = makeEventProcessor(baseConfig(es))) {
       ep.sendEvent(ie);
-      ep.sendEvent(fe); 
+      ep.sendEvent(fe);
     }
-    
+
     assertThat(es.getEventsFromLastRequest(), contains(
         isIdentifyEvent(ie, userJson),
-        isFeatureEvent(fe),
+        isFeatureEvent(fe, userJson),
         isSummaryEvent()
     ));
   }
 
-  
+
   @SuppressWarnings("unchecked")
   @Test
   public void nonTrackedEventsAreSummarized() throws Exception {
@@ -372,7 +372,7 @@ public class DefaultEventProcessorOutputTest extends BaseEventTest {
       ep.sendEvent(fe1c);
       ep.sendEvent(fe2);
     }
-    
+
     assertThat(es.getEventsFromLastRequest(), contains(
         allOf(
             isSummaryEvent(fe1a.getCreationDate(), fe2.getCreationDate()),
@@ -386,7 +386,7 @@ public class DefaultEventProcessorOutputTest extends BaseEventTest {
         )
     ));
   }
-  
+
   @Test
   public void customEventIsQueuedWithUser() throws Exception {
     MockEventSender es = new MockEventSender();
@@ -397,12 +397,12 @@ public class DefaultEventProcessorOutputTest extends BaseEventTest {
     try (DefaultEventProcessor ep = makeEventProcessor(baseConfig(es))) {
       ep.sendEvent(ce);
     }
-    
+
     assertThat(es.getEventsFromLastRequest(), contains(
         isCustomEvent(ce)
     ));
   }
-  
+
   @Test
   public void customEventWithNullContextOrInvalidContextDoesNotCauseError() throws Exception {
     // This should never happen because LDClient rejects such a user, but just in case,
@@ -411,13 +411,13 @@ public class DefaultEventProcessorOutputTest extends BaseEventTest {
     Event.Custom event1 = customEvent(invalidContext, "eventkey").build();
     Event.Custom event2 = customEvent(null, "eventkey").build();
     Event.Custom event3 = customEvent(user, "eventkey").build();
-    
+
     try (DefaultEventProcessor ep = makeEventProcessor(baseConfig(es))) {
       ep.sendEvent(event1);
       ep.sendEvent(event2);
       ep.sendEvent(event3);
     }
-    
+
     assertThat(es.getEventsFromLastRequest(), contains(
         isCustomEvent(event3)
     ));
