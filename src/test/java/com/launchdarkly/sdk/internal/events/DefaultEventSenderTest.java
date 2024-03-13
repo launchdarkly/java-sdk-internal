@@ -45,7 +45,7 @@ public class DefaultEventSenderTest extends BaseEventTest {
     // package that performs end-to-end HTTP.
     return false;
   }
-  
+
   private EventSender makeEventSender() {
     return makeEventSender(HttpProperties.defaults());
   }
@@ -53,18 +53,18 @@ public class DefaultEventSenderTest extends BaseEventTest {
   private EventSender makeEventSender(HttpProperties httpProperties) {
     return new DefaultEventSender(httpProperties, null, null, BRIEF_RETRY_DELAY_MILLIS, testLogger);
   }
-  
+
   @Test
   public void analyticsDataIsDelivered() throws Exception {
     try (HttpServer server = HttpServer.start(eventsSuccessResponse())) {
       try (EventSender es = makeEventSender()) {
         EventSender.Result result = es.sendAnalyticsEvents(FAKE_DATA_BYTES, 1, server.getUri());
-        
+
         assertTrue(result.isSuccess());
         assertFalse(result.isMustShutDown());
       }
-      
-      RequestInfo req = server.getRecorder().requireRequest();   
+
+      RequestInfo req = server.getRecorder().requireRequest();
       assertEquals(DefaultEventSender.DEFAULT_ANALYTICS_REQUEST_PATH, req.getPath());
       assertThat(req.getHeader("content-type"), equalToIgnoringCase("application/json; charset=utf-8"));
       assertEquals(FAKE_DATA, req.getBody());
@@ -76,12 +76,12 @@ public class DefaultEventSenderTest extends BaseEventTest {
     try (HttpServer server = HttpServer.start(eventsSuccessResponse())) {
       try (EventSender es = makeEventSender()) {
         EventSender.Result result = es.sendDiagnosticEvent(FAKE_DATA_BYTES, server.getUri());
-        
+
         assertTrue(result.isSuccess());
         assertFalse(result.isMustShutDown());
       }
-      
-      RequestInfo req = server.getRecorder().requireRequest();      
+
+      RequestInfo req = server.getRecorder().requireRequest();
       assertEquals(DefaultEventSender.DEFAULT_DIAGNOSTIC_REQUEST_PATH, req.getPath());
       assertThat(req.getHeader("content-type"), equalToIgnoringCase("application/json; charset=utf-8"));
       assertEquals(FAKE_DATA, req.getBody());
@@ -98,10 +98,10 @@ public class DefaultEventSenderTest extends BaseEventTest {
         result = es.sendDiagnosticEvent(FAKE_DATA_BYTES, server.getUri());
         assertTrue(result.isSuccess());
       }
-      
-      RequestInfo req1 = server.getRecorder().requireRequest();   
+
+      RequestInfo req1 = server.getRecorder().requireRequest();
       assertEquals("/custom/path/a", req1.getPath());
-      RequestInfo req2 = server.getRecorder().requireRequest();   
+      RequestInfo req2 = server.getRecorder().requireRequest();
       assertEquals("/custom/path/d", req2.getPath());
     }
   }
@@ -112,12 +112,12 @@ public class DefaultEventSenderTest extends BaseEventTest {
     headers.put("name1", "value1");
     headers.put("name2", "value2");
     HttpProperties httpProperties = new HttpProperties(0, headers, null, null, null, null, 0, null, null);
-    
+
     try (HttpServer server = HttpServer.start(eventsSuccessResponse())) {
       try (EventSender es = makeEventSender(httpProperties)) {
         es.sendAnalyticsEvents(FAKE_DATA_BYTES, 1, server.getUri());
       }
-      
+
       RequestInfo req = server.getRecorder().requireRequest();
       for (Map.Entry<String, String> kv: headers.entrySet()) {
         assertThat(req.getHeader(kv.getKey()), equalTo(kv.getValue()));
@@ -131,13 +131,13 @@ public class DefaultEventSenderTest extends BaseEventTest {
     headers.put("name1", "value1");
     headers.put("name2", "value2");
     HttpProperties httpProperties = new HttpProperties(0, headers, null, null, null, null, 0, null, null);
-    
+
     try (HttpServer server = HttpServer.start(eventsSuccessResponse())) {
       try (EventSender es = makeEventSender(httpProperties)) {
         es.sendDiagnosticEvent(FAKE_DATA_BYTES, server.getUri());
       }
-      
-      RequestInfo req = server.getRecorder().requireRequest();      
+
+      RequestInfo req = server.getRecorder().requireRequest();
       for (Map.Entry<String, String> kv: headers.entrySet()) {
         assertThat(req.getHeader(kv.getKey()), equalTo(kv.getValue()));
       }
@@ -156,12 +156,12 @@ public class DefaultEventSenderTest extends BaseEventTest {
       }
     };
     HttpProperties httpProperties = new HttpProperties(0, headers, headersTransformer, null, null, null, 0, null, null);
-    
+
     try (HttpServer server = HttpServer.start(eventsSuccessResponse())) {
       try (EventSender es = makeEventSender(httpProperties)) {
         es.sendAnalyticsEvents(FAKE_DATA_BYTES, 1, server.getUri());
       }
-      
+
       RequestInfo req = server.getRecorder().requireRequest();
       assertThat(req.getHeader("name1"), equalTo("value1a"));
       assertThat(req.getHeader("name2"), equalTo("value2"));
@@ -218,7 +218,7 @@ public class DefaultEventSenderTest extends BaseEventTest {
       assertThat(retryId, not(equalTo(payloadId)));
     }
   }
-  
+
   @Test
   public void eventSchemaNotSetOnDiagnosticEvents() throws Exception {
     try (HttpServer server = HttpServer.start(eventsSuccessResponse())) {
@@ -262,7 +262,7 @@ public class DefaultEventSenderTest extends BaseEventTest {
   public void http500ErrorIsRecoverable() throws Exception {
     testRecoverableHttpError(500);
   }
- 
+
   @Test
   public void serverDateIsParsed() throws Exception {
     long fakeTime = ((new Date().getTime() - 100000) / 1000) * 1000; // don't expect millisecond precision
@@ -271,7 +271,7 @@ public class DefaultEventSenderTest extends BaseEventTest {
     try (HttpServer server = HttpServer.start(resp)) {
       try (EventSender es = makeEventSender()) {
         EventSender.Result result = es.sendAnalyticsEvents(FAKE_DATA_BYTES, 1, server.getUri());
-        
+
         assertNotNull(result.getTimeFromServer());
         assertEquals(fakeTime, result.getTimeFromServer().getTime());
       }
@@ -285,7 +285,7 @@ public class DefaultEventSenderTest extends BaseEventTest {
     try (HttpServer server = HttpServer.start(resp)) {
       try (EventSender es = makeEventSender()) {
         EventSender.Result result = es.sendAnalyticsEvents(FAKE_DATA_BYTES, 1, server.getUri());
-        
+
         assertTrue(result.isSuccess());
         assertNull(result.getTimeFromServer());
       }
@@ -298,12 +298,12 @@ public class DefaultEventSenderTest extends BaseEventTest {
       try (EventSender es = makeEventSender()) {
         URI uriWithoutSlash = URI.create(server.getUri().toString().replaceAll("/$", ""));
         EventSender.Result result = es.sendAnalyticsEvents(FAKE_DATA_BYTES, 1, uriWithoutSlash);
-        
+
         assertTrue(result.isSuccess());
         assertFalse(result.isMustShutDown());
       }
-      
-      RequestInfo req = server.getRecorder().requireRequest();   
+
+      RequestInfo req = server.getRecorder().requireRequest();
       assertEquals("/bulk", req.getPath());
       assertThat(req.getHeader("content-type"), equalToIgnoringCase("application/json; charset=utf-8"));
       assertEquals(FAKE_DATA, req.getBody());
@@ -316,12 +316,12 @@ public class DefaultEventSenderTest extends BaseEventTest {
       try (EventSender es = makeEventSender()) {
         URI baseUri = server.getUri().resolve("/context/path");
         EventSender.Result result = es.sendAnalyticsEvents(FAKE_DATA_BYTES, 1, baseUri);
-        
+
         assertTrue(result.isSuccess());
         assertFalse(result.isMustShutDown());
       }
-      
-      RequestInfo req = server.getRecorder().requireRequest();   
+
+      RequestInfo req = server.getRecorder().requireRequest();
       assertEquals("/context/path/bulk", req.getPath());
       assertThat(req.getHeader("content-type"), equalToIgnoringCase("application/json; charset=utf-8"));
       assertEquals(FAKE_DATA, req.getBody());
@@ -334,7 +334,7 @@ public class DefaultEventSenderTest extends BaseEventTest {
       try (EventSender es = makeEventSender()) {
         EventSender.Result result1 = es.sendAnalyticsEvents(null, 0, server.getUri());
         EventSender.Result result2 = es.sendDiagnosticEvent(null, server.getUri());
-        
+
         assertTrue(result1.isSuccess());
         assertTrue(result2.isSuccess());
         assertEquals(0, server.getRecorder().count());
@@ -348,41 +348,41 @@ public class DefaultEventSenderTest extends BaseEventTest {
       try (EventSender es = makeEventSender()) {
         EventSender.Result result1 = es.sendAnalyticsEvents(new byte[0], 0, server.getUri());
         EventSender.Result result2 = es.sendDiagnosticEvent(new byte[0], server.getUri());
-        
+
         assertTrue(result1.isSuccess());
         assertTrue(result2.isSuccess());
         assertEquals(0, server.getRecorder().count());
       }
     }
   }
-  
+
   private void testUnrecoverableHttpError(int status) throws Exception {
     Handler errorResponse = Handlers.status(status);
-    
+
     try (HttpServer server = HttpServer.start(errorResponse)) {
       try (EventSender es = makeEventSender()) {
         EventSender.Result result = es.sendAnalyticsEvents(FAKE_DATA_BYTES, 1, server.getUri());
-        
+
         assertFalse(result.isSuccess());
         assertTrue(result.isMustShutDown());
       }
 
       server.getRecorder().requireRequest();
-      
+
       // it does not retry after this type of error, so there are no more requests
       server.getRecorder().requireNoRequests(Duration.ofMillis(100));
     }
   }
-  
+
   private void testRecoverableHttpError(int status) throws Exception {
     Handler errorResponse = Handlers.status(status);
     Handler errorsThenSuccess = Handlers.sequential(errorResponse, errorResponse, eventsSuccessResponse());
     // send two errors in a row, because the flush will be retried one time
-    
+
     try (HttpServer server = HttpServer.start(errorsThenSuccess)) {
       try (EventSender es = makeEventSender()) {
         EventSender.Result result = es.sendAnalyticsEvents(FAKE_DATA_BYTES, 1, server.getUri());
-        
+
         assertFalse(result.isSuccess());
         assertFalse(result.isMustShutDown());
       }
@@ -396,7 +396,7 @@ public class DefaultEventSenderTest extends BaseEventTest {
   private Handler eventsSuccessResponse() {
     return Handlers.status(202);
   }
-  
+
   private Handler addDateHeader(Date date) {
     return Handlers.header("Date", httpDateFormat.format(date));
   }
